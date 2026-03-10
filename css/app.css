@@ -505,14 +505,37 @@ tr:hover td { background: rgba(77,101,255,0.04); }
   }
   .nav-icon { font-size: 20px; line-height: 1; width: auto; }
 
-  /* Few tabs (coach view): show icon + label side by side */
-  .sidebar-few .nav-btn {
+  /* Few tabs (coach view): show icon + label side by side as pill buttons */
+  .sidebar-few {
+    display: flex;
     flex-direction: row;
-    gap: 8px;
-    font-size: 13px;
+    align-items: center;
     justify-content: center;
+    gap: 10px;
+    padding: 0 16px env(safe-area-inset-bottom);
   }
-  .sidebar-few .nav-icon { font-size: 20px; }
+  .sidebar-few .nav-btn {
+    flex: 0 1 160px !important;
+    flex-direction: row !important;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    justify-content: center;
+    align-items: center;
+    border-radius: 12px !important;
+    border: 1px solid var(--border2) !important;
+    border-top: 1px solid var(--border2) !important;
+    min-height: 48px;
+    background: var(--bg3);
+    padding: 10px 16px;
+  }
+  .sidebar-few .nav-btn.active {
+    background: var(--blue-dim) !important;
+    border-color: var(--blue-border) !important;
+    border-top-color: var(--blue-border) !important;
+    color: var(--blue);
+  }
+  .sidebar-few .nav-icon { font-size: 18px; width: auto; }
 
   .nav-btn.active {
     background: none;
