@@ -206,6 +206,8 @@ select option { background: var(--bg3); }
 .btn-logout:hover { border-color: var(--muted); color: var(--text); }
 .btn-full { width: 100%; justify-content: center; }
 .btn-sm { padding: 6px 14px; font-size: 13px; }
+.btn-demo { background: none; color: var(--orange); border: 1px solid rgba(245,158,11,0.35); }
+.btn-demo:hover { background: rgba(245,158,11,0.08); border-color: var(--orange); }
 
 /* ── Filter pills ────────────────────────────────── */
 .filter-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
