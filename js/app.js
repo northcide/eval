@@ -102,11 +102,8 @@ const App = {
 function escHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function setMain(html) { document.getElementById('main-content').innerHTML = html; }
 function scoreClass(n) { return n >= 8 ? 'score-high' : n >= 6 ? 'score-mid' : n >= 4 ? 'score-low' : 'score-poor'; }
-function playerEmoji(pos) {
-  if (pos === 'Pitcher/Catcher') return '⚾🥎';
-  if (pos === 'Pitcher') return '⚾';
-  if (pos === 'Catcher') return '🥎';
-  return '🏃';
+function playerNumber(id) {
+  return String(id).padStart(3, '0');
 }
 function posBadgeClass(pos) {
   if (pos === 'Pitcher/Catcher') return 'pos-PitcherCatcher';
@@ -704,7 +701,7 @@ const CoachEvaluate = {
     const player = this.players[this.localPlayerIndex];
     const skill  = SKILLS[s.current_skill_index];
     const remaining = this.players.length - this.scoredSet.size;
-    const emoji  = playerEmoji(player.position);
+    const num    = playerNumber(player.id);
     const isScored = this.scoredSet.has(player.id);
     const atFirst = this.localPlayerIndex === 0;
     const atLast  = this.localPlayerIndex === this.players.length - 1;
@@ -717,7 +714,7 @@ const CoachEvaluate = {
     setMain(`
       <div class="skill-progress">${this.skillStepsHtml()}</div>
       <div class="player-card">
-        <div class="player-emoji">${emoji}</div>
+        <div class="player-number">#${num}</div>
         <div class="player-name">${escHtml(player.name)}</div>
         <p class="player-sub">${player.position !== 'Player' ? escHtml(player.position) : ''}${player.age ? `${player.position !== 'Player' ? ' • ' : ''}Age ${player.age}` : ''}</p>
         <div class="player-nav">
@@ -753,9 +750,9 @@ const CoachEvaluate = {
 
     const rows = this.players.map((p, pi) => {
       const score = this.allScores[si]?.[p.id];
-      const emoji = playerEmoji(p.position);
+      const num = playerNumber(p.id);
       return `<div class="review-row" onclick="CoachEvaluate.editPlayer(${pi}, ${si})">
-        <span class="review-emoji">${emoji}</span>
+        <span class="review-number">#${num}</span>
         <span class="review-name">${escHtml(p.name)}${p.position !== 'Player' ? `<span class="review-pos">${escHtml(p.position)}</span>` : ''}</span>
         <span class="review-score ${score != null ? scoreClass(score) : 'score-none'}">${score != null ? score : '—'}</span>
         <span class="review-chevron">›</span>
@@ -775,7 +772,7 @@ const CoachEvaluate = {
     const p  = this.players[this.editPlayerIndex];
     const si = this.viewSkillIndex;
     const skill = SKILLS[si];
-    const emoji = playerEmoji(p.position);
+    const num = playerNumber(p.id);
     const existing = this.allScores[si]?.[p.id];
 
     const total = this.players.length;
@@ -789,7 +786,7 @@ const CoachEvaluate = {
     setMain(`
       <button class="btn btn-secondary mb16" onclick="CoachEvaluate.backToList()">← ${skill} List</button>
       <div class="player-card">
-        <div class="player-emoji">${emoji}</div>
+        <div class="player-number">#${num}</div>
         <div class="player-name">${escHtml(p.name)}</div>
         <p class="player-sub">${p.position !== 'Player' ? escHtml(p.position) : ''}${p.age ? `${p.position !== 'Player' ? ' • ' : ''}Age ${p.age}` : ''}</p>
         <p class="player-count">${pos} of ${total}</p>
