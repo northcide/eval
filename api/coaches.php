@@ -28,6 +28,29 @@ switch ($action) {
         jsonResponse(['id' => $id, 'name' => $name, 'is_admin' => false]);
         break;
 
+    case 'change_password':
+        requireLogin();
+        $data    = getInput();
+        $current = $data['current_password'] ?? '';
+        $new     = $data['new_password'] ?? '';
+
+        if (!$current || !$new) jsonResponse(['error' => 'Current and new password required'], 400);
+        if (strlen($new) < 6)   jsonResponse(['error' => 'New password must be at least 6 characters'], 400);
+
+        $db   = getDB();
+        $stmt = $db->prepare("SELECT password FROM coaches WHERE id = ?");
+        $stmt->execute([$_SESSION['coach']['id']]);
+        $row  = $stmt->fetch();
+
+        if (!$row || !password_verify($current, $row['password'])) {
+            jsonResponse(['error' => 'Current password is incorrect'], 401);
+        }
+
+        $hash = password_hash($new, PASSWORD_DEFAULT);
+        $db->prepare("UPDATE coaches SET password = ? WHERE id = ?")->execute([$hash, $_SESSION['coach']['id']]);
+        jsonResponse(['success' => true]);
+        break;
+
     case 'delete':
         requireAdmin();
         $data = getInput();

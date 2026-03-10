@@ -226,6 +226,7 @@ const App = {
           <span class="welcome-text">Welcome, <span>${escHtml(this.user.name)}</span></span>
           <span id="offline-badge" class="offline-badge" hidden>Offline</span>
           <button id="sync-btn" class="sync-btn" hidden onclick="Sync.upload()"><span id="sync-count"></span></button>
+          <button class="btn-logout" onclick="ChangePassword.show()">🔑 Password</button>
           <button class="btn-logout" onclick="App.doLogout()">Sign Out</button>
         </div>
       </div>
@@ -304,6 +305,67 @@ function renderLogin() {
 // Fix alert hidden toggling
 document.addEventListener('change', () => {}, true);
 const origSetMain = setMain;
+
+// ─── Change Password Modal ─────────────────────────────────────────────────────
+const ChangePassword = {
+  show() {
+    document.body.insertAdjacentHTML('beforeend', `
+      <div class="modal-overlay" id="cp-overlay" onclick="ChangePassword.close()">
+        <div class="modal-box" onclick="event.stopPropagation()">
+          <h3 class="modal-title">Change Password</h3>
+          <div class="field-group">
+            <label class="field-label">Current Password</label>
+            <input id="cp-current" type="password" placeholder="Current password" autocomplete="current-password" />
+          </div>
+          <div class="field-group">
+            <label class="field-label">New Password</label>
+            <input id="cp-new" type="password" placeholder="New password (min 6 chars)" autocomplete="new-password" />
+          </div>
+          <div class="field-group">
+            <label class="field-label">Confirm New Password</label>
+            <input id="cp-confirm" type="password" placeholder="Confirm new password" autocomplete="new-password" />
+          </div>
+          <div id="cp-alert" class="alert alert-error hidden"></div>
+          <div class="modal-actions">
+            <button class="btn" onclick="ChangePassword.close()">Cancel</button>
+            <button class="btn btn-primary" onclick="ChangePassword.save()">Save Password</button>
+          </div>
+        </div>
+      </div>`);
+    document.getElementById('cp-current').focus();
+  },
+
+  close() {
+    document.getElementById('cp-overlay')?.remove();
+  },
+
+  async save() {
+    const current = document.getElementById('cp-current').value;
+    const newPass = document.getElementById('cp-new').value;
+    const confirm = document.getElementById('cp-confirm').value;
+    const alert   = document.getElementById('cp-alert');
+
+    alert.classList.add('hidden');
+
+    if (!current || !newPass || !confirm) {
+      alert.textContent = 'All fields are required.';
+      alert.classList.remove('hidden');
+      return;
+    }
+    if (newPass !== confirm) {
+      alert.textContent = 'New passwords do not match.';
+      alert.classList.remove('hidden');
+      return;
+    }
+    try {
+      await api('coaches', 'change_password', { current_password: current, new_password: newPass });
+      this.close();
+    } catch (e) {
+      alert.textContent = e.message;
+      alert.classList.remove('hidden');
+    }
+  }
+};
 
 // ─── DIVISIONS ────────────────────────────────────────────────────────────────
 const Divisions = {
