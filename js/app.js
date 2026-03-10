@@ -57,28 +57,28 @@ const App = {
   showApp() {
     const isAdmin = this.user.is_admin;
     const tabs = isAdmin
-      ? [['divisions','Divisions','◈'],['players','Players','◉'],['coaches','Coaches','◎'],['evaluate','Evaluate','◆'],['results','Results','★']]
-      : [['evaluate','Evaluate','◆'],['results','My Results','★']];
+      ? [['divisions','Divisions','⬡'],['players','Players','👤'],['coaches','Coaches','🛡'],['evaluate','Evaluate','⚾'],['results','Results','📊']]
+      : [['evaluate','Evaluate','⚾'],['results','My Results','📊']];
 
     document.getElementById('app').innerHTML = `
       <div class="header">
         <div class="header-logo">
-          <span style="font-size:22px">⚾</span>
+          <div class="header-icon">⚾</div>
           <div>
-            <span class="header-title">SCOUT PRO</span>
+            <span class="header-title">Scout Pro</span>
             ${isAdmin ? '<span class="badge-admin">ADMIN</span>' : ''}
           </div>
         </div>
         <div class="header-right">
           <span class="welcome-text">Welcome, <span>${escHtml(this.user.name)}</span></span>
-          <button class="btn-logout" onclick="App.doLogout()">⇦ Logout</button>
+          <button class="btn-logout" onclick="App.doLogout()">Sign Out</button>
         </div>
       </div>
       <div class="main-layout">
         <nav class="sidebar" id="sidebar">
           ${tabs.map(([id,label,icon]) => `
             <button class="nav-btn" data-tab="${id}" onclick="App.switchTab('${id}')">
-              <span>${icon}</span><span>${label}</span>
+              <span class="nav-icon">${icon}</span><span>${label}</span>
             </button>`).join('')}
         </nav>
         <main class="content" id="main-content">
@@ -118,7 +118,7 @@ function renderLogin() {
   return `
   <div class="login-wrap">
     <div class="login-box">
-      <div class="login-diamond"><span>⚾</span></div>
+      <div class="login-logo">⚾</div>
       <h1 class="login-title">Scout Pro</h1>
       <p class="login-sub">Baseball Evaluation System</p>
       <div class="login-card">
@@ -510,7 +510,7 @@ const Evaluate = {
     }).join('');
 
     const skillHeaders = SKILLS.map((sk, i) =>
-      `<th class="center" style="color:${i === skillIndex ? 'var(--gold)' : i < skillIndex ? 'var(--green)' : 'var(--dim)'}">${i < skillIndex ? '✓ ' : ''}${sk}</th>`
+      `<th class="center" style="color:${i === skillIndex ? 'var(--blue)' : i < skillIndex ? 'var(--green)' : 'var(--dim)'}">${i < skillIndex ? '✓ ' : ''}${sk}</th>`
     ).join('');
 
     const steps = SKILLS.map((sk, i) => `
@@ -528,7 +528,7 @@ const Evaluate = {
       <h2 class="section-title">Evaluation Session</h2>
       <div class="session-banner">
         <p class="session-title">🟢 Session Active — ${escHtml(s.division_name)}</p>
-        <p class="session-sub">Current skill: <strong style="color:var(--gold)">${escHtml(currentSkill)}</strong></p>
+        <p class="session-sub">Current skill: <strong style="color:var(--blue)">${escHtml(currentSkill)}</strong></p>
       </div>
       <div class="skill-progress" style="margin-bottom:20px">${steps}</div>
       <div class="table-wrap mb16">
@@ -836,7 +836,7 @@ const CoachEvaluate = {
     setMain(`
       <div class="no-session">
         <div class="big-icon">🏆</div>
-        <h2 style="color:var(--gold)">Evaluation Complete!</h2>
+        <h2 style="color:var(--blue)">Evaluation Complete!</h2>
         <p class="text-muted mt8">All skills evaluated. Check the Results tab.</p>
       </div>`);
   },
@@ -979,7 +979,7 @@ const Results = {
             <tr>
               <th>#</th><th>Player</th><th class="center">Division</th>
               ${SKILLS.map(s => `<th class="center">${s}</th>`).join('')}
-              <th class="center" style="color:var(--gold)">Overall</th>
+              <th class="center" style="color:var(--blue)">Overall</th>
             </tr>
           </thead>
           <tbody>${tableRows}</tbody>
