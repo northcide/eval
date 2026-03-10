@@ -504,6 +504,16 @@ tr:hover td { background: rgba(77,101,255,0.04); }
     text-align: center; min-height: 64px;
   }
   .nav-icon { font-size: 20px; line-height: 1; width: auto; }
+
+  /* Few tabs (coach view): show icon + label side by side */
+  .sidebar-few .nav-btn {
+    flex-direction: row;
+    gap: 8px;
+    font-size: 13px;
+    justify-content: center;
+  }
+  .sidebar-few .nav-icon { font-size: 20px; }
+
   .nav-btn.active {
     background: none;
     border-top: 2px solid var(--blue);

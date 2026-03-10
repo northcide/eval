@@ -90,7 +90,7 @@ const App = {
         </div>
       </div>
       <div class="main-layout">
-        <nav class="sidebar" id="sidebar">
+        <nav class="sidebar ${tabs.length <= 3 ? 'sidebar-few' : ''}" id="sidebar">
           ${tabs.map(([id,label,icon]) => `
             <button class="nav-btn" data-tab="${id}" onclick="App.switchTab('${id}')">
               <span class="nav-icon">${icon}</span><span>${label}</span>
