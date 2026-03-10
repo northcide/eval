@@ -2,14 +2,14 @@
   "name": "Scout Pro",
   "short_name": "Scout Pro",
   "description": "Baseball player evaluation system",
-  "start_url": "/eval/",
-  "scope": "/eval/",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
   "theme_color": "#0b1022",
   "background_color": "#070c1a",
   "icons": [
-    { "src": "/eval/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "/eval/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "./icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ]
 }
