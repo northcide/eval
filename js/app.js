@@ -37,13 +37,28 @@ const App = {
     const name = document.getElementById('login-name').value.trim();
     const pass = document.getElementById('login-pass').value;
     const err  = document.getElementById('login-error');
+    const btn  = document.getElementById('login-btn');
+
     err.textContent = '';
+    err.classList.add('hidden');
+
+    if (!name) { showLoginError('Please enter your name.'); return; }
+    if (!pass)  { showLoginError('Please enter your password.'); return; }
+
+    btn.disabled = true;
+    btn.textContent = 'Signing in…';
+
     try {
       const { coach } = await api('auth', 'login', { name, password: pass });
       this.user = coach;
       this.showApp();
     } catch (e) {
-      err.textContent = e.message;
+      const msg = e.message?.includes('fetch') || e.message?.includes('network') || e.message?.includes('Failed')
+        ? 'Cannot reach the server. Check your connection and try again.'
+        : (e.message || 'Login failed. Please try again.');
+      showLoginError(msg);
+      btn.disabled = false;
+      btn.textContent = 'Sign In';
     }
   },
 
@@ -111,6 +126,13 @@ function posBadgeClass(pos) {
 }
 
 // ─── LOGIN render ─────────────────────────────────────────────────────────────
+function showLoginError(msg) {
+  const el = document.getElementById('login-error');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
 function renderLogin() {
   return `
   <div class="login-wrap">
@@ -122,14 +144,16 @@ function renderLogin() {
         <form id="login-form">
           <div class="field-group">
             <label class="field-label">Coach Name</label>
-            <input id="login-name" placeholder="Enter your name" autocomplete="username" required />
+            <input id="login-name" placeholder="Enter your name" autocomplete="username"
+              oninput="document.getElementById('login-error').classList.add('hidden')" />
           </div>
           <div class="field-group">
             <label class="field-label">Password</label>
-            <input id="login-pass" type="password" placeholder="Enter your password" autocomplete="current-password" required />
+            <input id="login-pass" type="password" placeholder="Enter your password" autocomplete="current-password"
+              oninput="document.getElementById('login-error').classList.add('hidden')" />
           </div>
-          <div id="login-error" class="alert alert-error hidden" style="margin-top:8px"></div>
-          <button type="submit" class="btn btn-primary btn-full mt16">Sign In</button>
+          <div id="login-error" class="alert alert-error hidden"></div>
+          <button id="login-btn" type="submit" class="btn btn-primary btn-full mt16">Sign In</button>
         </form>
         <p class="login-hint">Default admin: "Administrator" / "admin123"</p>
       </div>
