@@ -512,8 +512,8 @@ tr:hover td { background: var(--blue-dim); }
     display: flex; flex-direction: row;
     align-items: center; justify-content: center;
     gap: 10px;
-    padding: 8px 20px !important;
-    padding-bottom: calc(10px + env(safe-area-inset-bottom)) !important;
+    padding: 4px 20px !important;
+    padding-bottom: calc(env(safe-area-inset-bottom) + 6px) !important;
     background: var(--bg) !important;
     border-top: 1px solid var(--border) !important;
     box-shadow: none !important;
