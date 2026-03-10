@@ -88,76 +88,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare("INSERT IGNORE INTO coaches (name, password, is_admin) VALUES ('Administrator', ?, 1)");
             $stmt->execute([$hash]);
 
-            // Write config.php
-            $config = <<<PHP
-<?php
-define('DB_HOST',    '{$host}');
-define('DB_NAME',    '{$name}');
-define('DB_USER',    '{$user}');
-define('DB_PASS',    '{$pass}');
-define('DB_CHARSET', 'utf8mb4');
+            // Write config.php — build with concatenation to avoid heredoc indentation issues
+            $q = "'";
+            $configPath = __DIR__ . '/api/config.php';
+            $config = "<?php\n"
+                . "define('DB_HOST',    " . $q . addslashes($host) . $q . ");\n"
+                . "define('DB_NAME',    " . $q . addslashes($name) . $q . ");\n"
+                . "define('DB_USER',    " . $q . addslashes($user) . $q . ");\n"
+                . "define('DB_PASS',    " . $q . addslashes($pass) . $q . ");\n"
+                . "define('DB_CHARSET', 'utf8mb4');\n"
+                . "\n"
+                . "define('SESSION_NAME',     'scout_pro_session');\n"
+                . "define('SESSION_LIFETIME', 86400);\n"
+                . "\n"
+                . 'function getDB(): PDO {' . "\n"
+                . '    static $pdo = null;' . "\n"
+                . '    if ($pdo === null) {' . "\n"
+                . '        $dsn = "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET;' . "\n"
+                . '        $options = [' . "\n"
+                . '            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,' . "\n"
+                . '            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,' . "\n"
+                . '            PDO::ATTR_EMULATE_PREPARES   => false,' . "\n"
+                . '        ];' . "\n"
+                . '        try {' . "\n"
+                . '            $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);' . "\n"
+                . '        } catch (PDOException $e) {' . "\n"
+                . '            http_response_code(500);' . "\n"
+                . "            die(json_encode(['error' => 'Database connection failed: ' . \$e->getMessage()]));\n"
+                . '        }' . "\n"
+                . '    }' . "\n"
+                . '    return $pdo;' . "\n"
+                . "}\n\n"
+                . 'function startSession(): void {' . "\n"
+                . "    ini_set('session.name', SESSION_NAME);\n"
+                . "    ini_set('session.gc_maxlifetime', SESSION_LIFETIME);\n"
+                . '    if (session_status() === PHP_SESSION_NONE) {' . "\n"
+                . '        session_start();' . "\n"
+                . '    }' . "\n"
+                . "}\n\n"
+                . 'function requireLogin(): array {' . "\n"
+                . '    startSession();' . "\n"
+                . "    if (empty(\$_SESSION['coach'])) {\n"
+                . '        http_response_code(401);' . "\n"
+                . "        die(json_encode(['error' => 'Not authenticated']));\n"
+                . '    }' . "\n"
+                . "    return \$_SESSION['coach'];\n"
+                . "}\n\n"
+                . 'function requireAdmin(): array {' . "\n"
+                . '    $coach = requireLogin();' . "\n"
+                . "    if (empty(\$coach['is_admin'])) {\n"
+                . '        http_response_code(403);' . "\n"
+                . "        die(json_encode(['error' => 'Admin access required']));\n"
+                . '    }' . "\n"
+                . '    return $coach;' . "\n"
+                . "}\n\n"
+                . 'function jsonResponse(mixed $data, int $status = 200): void {' . "\n"
+                . '    http_response_code($status);' . "\n"
+                . "    header('Content-Type: application/json');\n"
+                . '    echo json_encode($data);' . "\n"
+                . '    exit;' . "\n"
+                . "}\n\n"
+                . 'function getInput(): array {' . "\n"
+                . "    \$raw = file_get_contents('php://input');\n"
+                . '    return json_decode($raw, true) ?? [];' . "\n"
+                . "}\n";
 
-define('SESSION_NAME',     'scout_pro_session');
-define('SESSION_LIFETIME', 86400);
-
-function getDB(): PDO {
-    static \$pdo = null;
-    if (\$pdo === null) {
-        \$dsn = "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET;
-        \$options = [
-            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            PDO::ATTR_EMULATE_PREPARES   => false,
-        ];
-        try {
-            \$pdo = new PDO(\$dsn, DB_USER, DB_PASS, \$options);
-        } catch (PDOException \$e) {
-            http_response_code(500);
-            die(json_encode(['error' => 'Database connection failed: ' . \$e->getMessage()]));
-        }
-    }
-    return \$pdo;
-}
-
-function startSession(): void {
-    ini_set('session.name', SESSION_NAME);
-    ini_set('session.gc_maxlifetime', SESSION_LIFETIME);
-    if (session_status() === PHP_SESSION_NONE) {
-        session_start();
-    }
-}
-
-function requireLogin(): array {
-    startSession();
-    if (empty(\$_SESSION['coach'])) {
-        http_response_code(401);
-        die(json_encode(['error' => 'Not authenticated']));
-    }
-    return \$_SESSION['coach'];
-}
-
-function requireAdmin(): array {
-    \$coach = requireLogin();
-    if (empty(\$coach['is_admin'])) {
-        http_response_code(403);
-        die(json_encode(['error' => 'Admin access required']));
-    }
-    return \$coach;
-}
-
-function jsonResponse(mixed \$data, int \$status = 200): void {
-    http_response_code(\$status);
-    header('Content-Type: application/json');
-    echo json_encode(\$data);
-    exit;
-}
-
-function getInput(): array {
-    \$raw = file_get_contents('php://input');
-    return json_decode(\$raw, true) ?? [];
-}
-PHP;
-            file_put_contents(__DIR__ . '/api/config.php', $config);
+            if (file_put_contents($configPath, $config) === false) {
+                throw new Exception('Could not write api/config.php — check that the web server has write permission to that file (try: chmod 664 api/config.php).');
+            }
 
             // Update manifest.json and sw.js with correct app URL if provided
             if ($appurl) {
