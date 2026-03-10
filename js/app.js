@@ -455,23 +455,23 @@ const Evaluate = {
 
   async load() {
     setMain(`<h2 class="section-title">Evaluation Session</h2><div class="spinner"></div>`);
-    const [session, divisions] = await Promise.all([
-      api('sessions', 'active').catch(() => null),
-      api('divisions', 'list')
-    ]);
-    this.session = session;
-    this.divisions = divisions;
-    if (session) {
-      this.players = await api('players', 'list', null, 'GET').then(all => all.filter(p => p.division_id == session.division_id));
-      this.progress = await api('sessions', 'progress', null, 'GET').then(data => {
-        // re-fetch with session_id
-        return fetch(`api/sessions.php?action=progress&session_id=${session.id}`).then(r => r.json());
-      });
-      this.renderActive();
-      // poll every 5s
-      App.pollTimer = setInterval(() => this.refresh(), 5000);
-    } else {
-      this.renderSetup();
+    try {
+      const [session, divisions] = await Promise.all([
+        api('sessions', 'active').catch(() => null),
+        api('divisions', 'list')
+      ]);
+      this.session = session;
+      this.divisions = divisions;
+      if (session) {
+        this.players = await api('players', 'list').then(all => all.filter(p => p.division_id == session.division_id));
+        this.progress = await fetch(`api/sessions.php?action=progress&session_id=${session.id}`).then(r => r.json());
+        this.renderActive();
+        App.pollTimer = setInterval(() => this.refresh(), 5000);
+      } else {
+        this.renderSetup();
+      }
+    } catch (e) {
+      setMain(`<div class="alert alert-error">${escHtml(e.message)}</div>`);
     }
   },
 
@@ -479,7 +479,7 @@ const Evaluate = {
     if (App.currentTab !== 'evaluate') return;
     const [session, progress] = await Promise.all([
       api('sessions', 'active').catch(() => null),
-      this.session ? fetch(`api/sessions.php?action=progress&session_id=${this.session.id}`).then(r => r.json()) : []
+      this.session ? fetch(`api/sessions.php?action=progress&session_id=${this.session.id}`).then(r => r.json()) : Promise.resolve([])
     ]);
     this.session  = session;
     this.progress = progress || [];
@@ -513,10 +513,6 @@ const Evaluate = {
 
   renderActive() {
     const s = this.session;
-    const skillIndex   = s.current_skill_index;
-    const currentSkill = SKILLS[skillIndex] || 'Complete';
-    const nextSkill    = SKILLS[skillIndex + 1];
-    const sessionDone  = skillIndex >= SKILLS.length;
 
     // Build progress map: player_id -> skill_index -> avg score
     const pmap = {};
@@ -530,49 +526,26 @@ const Evaluate = {
         const sc = pmap[p.id]?.[si];
         return `<td class="center">${sc ? `<span class="score-val ${scoreClass(sc)}">${sc}</span>` : '<span class="score-none">—</span>'}</td>`;
       }).join('');
-      return `<tr><td>${escHtml(p.name)}</td>${cells}</tr>`;
+      return `<tr><td><span style="color:var(--blue);font-size:12px;font-weight:700">#${playerNumber(p.id)}</span> ${escHtml(p.name)}</td>${cells}</tr>`;
     }).join('');
 
-    const skillHeaders = SKILLS.map((sk, i) =>
-      `<th class="center" style="color:${i === skillIndex ? 'var(--blue)' : i < skillIndex ? 'var(--green)' : 'var(--dim)'}">${i < skillIndex ? '✓ ' : ''}${sk}</th>`
-    ).join('');
-
-    const steps = SKILLS.map((sk, i) => `
-      <div class="skill-step ${i < skillIndex ? 'done' : i === skillIndex ? 'current' : 'upcoming'}">
-        ${i < skillIndex ? '✓' : sk}
-      </div>`).join('');
-
-    const nextSkillBtn = !sessionDone
-      ? `<button class="btn btn-primary" onclick="Evaluate.nextSkill()">
-           Next Skill: ${escHtml(nextSkill || 'Finish')} →
-         </button>`
-      : '';
+    const skillHeaders = SKILLS.map(sk => `<th class="center">${sk}</th>`).join('');
 
     setMain(`
       <h2 class="section-title">Evaluation Session</h2>
-      <div class="session-banner">
-        <p class="session-title">🟢 Session Active — ${escHtml(s.division_name)}</p>
-        <p class="session-sub">Current skill: <strong style="color:var(--blue)">${escHtml(currentSkill)}</strong></p>
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
+        <div class="session-banner" style="flex:1;margin-bottom:0">
+          <p class="session-title">🟢 Active — ${escHtml(s.division_name)}</p>
+          <p class="session-sub">Coaches can score any skill freely</p>
+        </div>
+        <button class="btn" style="background:var(--red-dim);border:1px solid var(--red);color:var(--red);white-space:nowrap" onclick="Evaluate.end()">■ End Session</button>
       </div>
-      <div class="skill-progress" style="margin-bottom:20px">${steps}</div>
-      <div class="table-wrap mb16">
+      <div class="table-wrap">
         <table>
           <thead><tr><th>Player</th>${skillHeaders}</tr></thead>
-          <tbody>${rows}</tbody>
+          <tbody>${rows || '<tr class="empty-row"><td colspan="5">No players in this division.</td></tr>'}</tbody>
         </table>
-      </div>
-      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
-        ${nextSkillBtn}
-        <button class="btn btn-secondary" style="border-color:var(--red);color:var(--red)" onclick="Evaluate.end()">■ End Session</button>
       </div>`);
-  },
-
-  async nextSkill() {
-    if (!confirm(`Advance all coaches to the next skill?`)) return;
-    try {
-      await api('sessions', 'advance', { session_id: this.session.id });
-      await this.refresh();
-    } catch (e) { alert(e.message); }
   },
 
   async end() {
@@ -588,11 +561,12 @@ const Evaluate = {
 const CoachEvaluate = {
   session: null,
   players: [],
-  allScores: {},        // { skillIndex: { playerId: score } }
-  scoredSet: new Set(), // player IDs scored for current skill
+  allScores: {},           // { skillIndex: { playerId: score } }
+  scoredSet: new Set(),    // player IDs scored for selectedSkillIndex
   localPlayerIndex: 0,
   selectedScore: null,
-  mode: 'evaluate',     // 'evaluate' | 'list' | 'score'
+  selectedSkillIndex: 0,   // which skill the coach is currently scoring
+  mode: 'evaluate',        // 'evaluate' | 'list' | 'score'
   viewSkillIndex: 0,
   editPlayerIndex: 0,
 
@@ -604,6 +578,7 @@ const CoachEvaluate = {
 
     this.players = await fetch(`api/players.php?action=list&division_id=${session.division_id}`).then(r => r.json());
     await this.loadAllScores();
+    this.selectedSkillIndex = 0;
     this.buildScoredSet();
     this.localPlayerIndex = this.firstUnscoredIndex();
     this.selectedScore = null;
@@ -626,8 +601,17 @@ const CoachEvaluate = {
   },
 
   buildScoredSet() {
-    const si = this.session.current_skill_index;
-    this.scoredSet = new Set(Object.keys(this.allScores[si] || {}).map(Number));
+    this.scoredSet = new Set(Object.keys(this.allScores[this.selectedSkillIndex] || {}).map(Number));
+  },
+
+  switchSkill(si) {
+    this.selectedSkillIndex = si;
+    this.viewSkillIndex = si;
+    this.buildScoredSet();
+    this.localPlayerIndex = this.firstUnscoredIndex();
+    this.selectedScore = null;
+    this.mode = 'evaluate';
+    this.render();
   },
 
   firstUnscoredIndex() {
@@ -659,26 +643,17 @@ const CoachEvaluate = {
     if (App.currentTab !== 'evaluate') return;
     const session = await api('sessions', 'active').catch(() => null);
     if (!session) { clearInterval(App.pollTimer); this.renderNoSession(); return; }
-
-    if (session.current_skill_index !== this.session.current_skill_index) {
-      this.session = session;
-      this.selectedScore = null;
-      this.mode = 'evaluate';
-      this.buildScoredSet();
-      this.localPlayerIndex = this.firstUnscoredIndex();
-      this.render();
-    }
+    this.session = session;
   },
 
-  // ── Skill progress bar (clickable for done/current skills) ──
+  // ── Skill progress bar — all skills clickable ──
   skillStepsHtml() {
-    const si = this.session.current_skill_index;
     return SKILLS.map((sk, i) => {
-      const state = i < si ? 'done' : i === si ? 'current' : 'upcoming';
-      const clickable = i <= si;
-      return `<div class="skill-step ${state}${clickable ? ' clickable' : ''}"
-        ${clickable ? `onclick="CoachEvaluate.viewSkill(${i})"` : ''}>
-        ${i < si ? '✓' : sk}
+      const allDone = this.players.length > 0 && this.players.every(p => this.allScores[i]?.[p.id] !== undefined);
+      const active  = i === this.selectedSkillIndex;
+      const state   = allDone ? 'done' : active ? 'current' : 'upcoming';
+      return `<div class="skill-step ${state} clickable" onclick="CoachEvaluate.switchSkill(${i})">
+        ${allDone ? '✓' : sk}
       </div>`;
     }).join('');
   },
@@ -713,11 +688,9 @@ const CoachEvaluate = {
 
   // ── Main render router ──
   render() {
-    const s = this.session;
-    if (!s || s.current_skill_index >= SKILLS.length) { this.renderComplete(); return; }
+    if (!this.session) { this.renderNoSession(); return; }
     if (this.mode === 'list')  { this.renderList(); return; }
     if (this.mode === 'score') { this.renderScore(); return; }
-    // evaluate mode
     if (this.localPlayerIndex >= this.players.length) { this.renderSkillDone(); return; }
     this.renderEvaluate();
   },
@@ -759,7 +732,7 @@ const CoachEvaluate = {
   renderEvaluate() {
     const s = this.session;
     const player = this.players[this.localPlayerIndex];
-    const skill  = SKILLS[s.current_skill_index];
+    const skill  = SKILLS[this.selectedSkillIndex];
     const remaining = this.players.length - this.scoredSet.size;
     const num    = playerNumber(player.id);
     const isScored = this.scoredSet.has(player.id);
@@ -808,14 +781,11 @@ const CoachEvaluate = {
   renderList() {
     const si = this.viewSkillIndex;
     const skill = SKILLS[si];
-    const currentSi = this.session.current_skill_index;
-    const hasUnscored = this.localPlayerIndex < this.players.length;
 
     const tabs = SKILLS.map((sk, i) => {
-      const accessible = i <= currentSi;
+      const allDone = this.players.every(p => this.allScores[i]?.[p.id] !== undefined);
       const active = i === si;
-      return `<button class="skill-tab${active ? ' active' : ''}${!accessible ? ' disabled' : ''}"
-        ${accessible ? `onclick="CoachEvaluate.viewSkill(${i})"` : ''}>${i < currentSi ? '✓ ' : ''}${sk}</button>`;
+      return `<button class="skill-tab${active ? ' active' : ''}" onclick="CoachEvaluate.viewSkill(${i})">${allDone ? '✓ ' : ''}${sk}</button>`;
     }).join('');
 
     const rows = this.players.map((p, pi) => {
@@ -831,9 +801,7 @@ const CoachEvaluate = {
 
     setMain(`
       <div class="skill-tabs">${tabs}</div>
-      ${hasUnscored && si === currentSi
-        ? `<button class="btn btn-primary mb16" style="width:100%" onclick="CoachEvaluate.backToEvaluate()">← Back to Scoring</button>`
-        : ''}
+      <button class="btn btn-primary mb16" style="width:100%" onclick="CoachEvaluate.switchSkill(${si})">← Score ${escHtml(skill)}</button>
       <div class="review-list">${rows}</div>`);
   },
 
@@ -872,21 +840,31 @@ const CoachEvaluate = {
   },
 
   renderSkillDone() {
-    const s = this.session;
-    const skill = SKILLS[s.current_skill_index];
-    const nextSkill = SKILLS[s.current_skill_index + 1];
+    const skill = SKILLS[this.selectedSkillIndex];
+    const allComplete = SKILLS.every((_, i) =>
+      this.players.every(p => this.allScores[i]?.[p.id] !== undefined)
+    );
+    const nextUndone = SKILLS.findIndex((_, i) =>
+      i !== this.selectedSkillIndex && this.players.some(p => this.allScores[i]?.[p.id] === undefined)
+    );
 
     setMain(`
-      <div class="skill-progress">${this.skillStepsHtml()}</div>
-      <div class="skill-done-card">
-        <div class="skill-done-icon">✅</div>
-        <h2 class="skill-done-title">${escHtml(skill)} Complete</h2>
-        <p class="skill-done-sub">You've scored all ${this.players.length} players.</p>
-        ${nextSkill
-          ? `<p class="skill-done-next">Waiting for admin to start<br><strong>${escHtml(nextSkill)}</strong></p>`
-          : `<p class="skill-done-next">Waiting for admin to finish the session.</p>`}
-        <button class="btn btn-secondary mt12" onclick="CoachEvaluate.viewSkill(${s.current_skill_index})">Review ${escHtml(skill)} Scores</button>
-        <div class="skill-done-spinner mt12"><div class="spinner"></div></div>
+      <div class="eval-screen">
+        <div class="skill-progress">${this.skillStepsHtml()}</div>
+        <div class="skill-done-card" style="flex:1;display:flex;flex-direction:column;justify-content:center">
+          <div class="skill-done-icon">✅</div>
+          <h2 class="skill-done-title">${escHtml(skill)} Complete</h2>
+          <p class="skill-done-sub">All ${this.players.length} players scored.</p>
+          ${allComplete
+            ? `<p class="skill-done-next" style="color:var(--green)">🏆 All skills complete!</p>`
+            : nextUndone >= 0
+              ? `<p class="skill-done-next">Tap <strong>${escHtml(SKILLS[nextUndone])}</strong> above to continue.</p>`
+              : ''}
+          <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:16px">
+            <button class="btn btn-secondary" onclick="CoachEvaluate.viewSkill(${this.selectedSkillIndex})">Review ${escHtml(skill)}</button>
+            ${nextUndone >= 0 ? `<button class="btn btn-primary" onclick="CoachEvaluate.switchSkill(${nextUndone})">Score ${escHtml(SKILLS[nextUndone])} →</button>` : ''}
+          </div>
+        </div>
       </div>`);
   },
 
@@ -903,8 +881,9 @@ const CoachEvaluate = {
     setMain(`
       <div class="no-session">
         <div class="big-icon">🏆</div>
-        <h2 style="color:var(--blue)">Evaluation Complete!</h2>
-        <p class="text-muted mt8">All skills evaluated. Check the Results tab.</p>
+        <h2 style="color:var(--blue)">All Skills Complete!</h2>
+        <p class="text-muted mt8">You've scored all players on every skill. Check the Results tab.</p>
+        <div class="skill-progress mt16" style="max-width:320px;margin-left:auto;margin-right:auto">${this.skillStepsHtml()}</div>
       </div>`);
   },
 
@@ -915,16 +894,17 @@ const CoachEvaluate = {
 
   // Submit score for current unscored player in evaluate mode
   async submit() {
-    const s = this.session;
-    const p = this.players[this.localPlayerIndex];
+    const s  = this.session;
+    const p  = this.players[this.localPlayerIndex];
+    const si = this.selectedSkillIndex;
     if (!p || !this.selectedScore) return;
     try {
       await api('evaluations', 'submit', {
         session_id: s.id, player_id: p.id,
-        skill_index: s.current_skill_index, score: this.selectedScore
+        skill_index: si, score: this.selectedScore
       });
-      if (!this.allScores[s.current_skill_index]) this.allScores[s.current_skill_index] = {};
-      this.allScores[s.current_skill_index][p.id] = this.selectedScore;
+      if (!this.allScores[si]) this.allScores[si] = {};
+      this.allScores[si][p.id] = this.selectedScore;
       this.scoredSet.add(p.id);
       this.selectedScore = null;
       this.localPlayerIndex = this.firstUnscoredIndex();
@@ -950,7 +930,7 @@ const CoachEvaluate = {
       });
       if (!this.allScores[si]) this.allScores[si] = {};
       this.allScores[si][p.id] = this.selectedScore;
-      if (si === s.current_skill_index) {
+      if (si === this.selectedSkillIndex) {
         this.scoredSet.add(p.id);
         this.localPlayerIndex = this.firstUnscoredIndex();
       }
