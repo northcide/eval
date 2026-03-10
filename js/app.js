@@ -1073,6 +1073,9 @@ App.switchTab = function(tab) {
   clearInterval(this.pollTimer);
   this.currentTab = tab;
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  // Disable content scrolling on evaluate tab so eval-screen fills height exactly
+  const content = document.getElementById('main-content');
+  if (content) content.classList.toggle('eval-mode', tab === 'evaluate');
   const views = {
     divisions: Divisions,
     players:   Players,
