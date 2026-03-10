@@ -455,6 +455,45 @@ tr:hover td { background: rgba(77,101,255,0.04); }
 .import-box { background: var(--bg3); border: 1px solid var(--border2); border-radius: var(--radius); padding: 20px; margin-bottom: 20px; }
 .code-hint { color: var(--blue); font-family: monospace; font-size: 13px; }
 
+/* ── Player search (jump-to) ─────────────────────── */
+.player-search-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+.psr-icon {
+  position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+  font-size: 13px; pointer-events: none; line-height: 1;
+}
+.player-search-input {
+  width: 100%; padding: 7px 10px 7px 30px;
+  background: var(--bg4); border: 1px solid var(--border2);
+  color: var(--text); border-radius: 8px; font-size: 13px;
+  font-family: inherit; outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.player-search-input:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(77,101,255,0.15);
+}
+.player-search-drop {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+  background: var(--bg3); border: 1px solid var(--border2);
+  border-radius: 10px; z-index: 300;
+  overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+.psr-item {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; padding: 9px 12px;
+  background: none; border: none; cursor: pointer;
+  font-family: inherit; text-align: left;
+  transition: background 0.1s;
+}
+.psr-item:hover, .psr-item:focus { background: var(--bg4); }
+.psr-num  { color: var(--blue); font-size: 12px; font-weight: 700; letter-spacing: 0.05em; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.psr-name { flex: 1; color: var(--text); font-size: 14px; font-weight: 500; }
+.psr-check { color: var(--green); font-size: 12px; flex-shrink: 0; }
+.psr-empty { padding: 10px 12px; color: var(--dim); font-size: 13px; }
+
 /* ── Evaluate screen — no-scroll flex layout ────── */
 .eval-screen {
   display: flex;
