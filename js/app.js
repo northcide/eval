@@ -3,6 +3,136 @@
 
 const SKILLS = ['Running', 'Fielding', 'Pitching', 'Hitting'];
 
+// ─── Offline IndexedDB ────────────────────────────────────────────────────────
+const OfflineDB = {
+  _db: null,
+
+  async open() {
+    if (this._db) return this._db;
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open('scout-pro-offline', 1);
+      req.onupgradeneeded = e => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains('eval_queue')) {
+          db.createObjectStore('eval_queue', { keyPath: 'id', autoIncrement: true });
+        }
+        if (!db.objectStoreNames.contains('kv')) {
+          db.createObjectStore('kv', { keyPath: 'k' });
+        }
+      };
+      req.onsuccess  = e => { this._db = e.target.result; resolve(this._db); };
+      req.onerror    = e => reject(e.target.error);
+    });
+  },
+
+  async kvSet(k, v) {
+    const db = await this.open();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('kv', 'readwrite');
+      tx.objectStore('kv').put({ k, v });
+      tx.oncomplete = resolve; tx.onerror = e => reject(e.target.error);
+    });
+  },
+
+  async kvGet(k) {
+    const db = await this.open();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('kv', 'readonly');
+      const req = tx.objectStore('kv').get(k);
+      req.onsuccess = e => resolve(e.target.result?.v ?? null);
+      req.onerror   = e => reject(e.target.error);
+    });
+  },
+
+  async enqueue(item) {
+    const db = await this.open();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('eval_queue', 'readwrite');
+      tx.objectStore('eval_queue').add({ ...item, queued_at: Date.now() });
+      tx.oncomplete = resolve; tx.onerror = e => reject(e.target.error);
+    });
+  },
+
+  async getQueue() {
+    const db = await this.open();
+    return new Promise((resolve, reject) => {
+      const tx  = db.transaction('eval_queue', 'readonly');
+      const req = tx.objectStore('eval_queue').getAll();
+      req.onsuccess = e => resolve(e.target.result);
+      req.onerror   = e => reject(e.target.error);
+    });
+  },
+
+  async dequeue(id) {
+    const db = await this.open();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('eval_queue', 'readwrite');
+      tx.objectStore('eval_queue').delete(id);
+      tx.oncomplete = resolve; tx.onerror = e => reject(e.target.error);
+    });
+  },
+
+  async queueSize() {
+    const db = await this.open();
+    return new Promise((resolve, reject) => {
+      const tx  = db.transaction('eval_queue', 'readonly');
+      const req = tx.objectStore('eval_queue').count();
+      req.onsuccess = e => resolve(e.target.result);
+      req.onerror   = e => reject(e.target.error);
+    });
+  }
+};
+
+// ─── Sync ─────────────────────────────────────────────────────────────────────
+const Sync = {
+  _busy: false,
+
+  async upload() {
+    if (this._busy || !navigator.onLine) return 0;
+    this._busy = true;
+    const queue = await OfflineDB.getQueue();
+    let n = 0;
+    for (const item of queue) {
+      try {
+        const res = await fetch('api/evaluations.php?action=submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id:  item.session_id,
+            player_id:   item.player_id,
+            skill_index: item.skill_index,
+            score:       item.score
+          })
+        });
+        if (res.ok) { await OfflineDB.dequeue(item.id); n++; }
+        else break;
+      } catch { break; }
+    }
+    this._busy = false;
+    await this.refreshUI();
+    return n;
+  },
+
+  async refreshUI() {
+    const count   = await OfflineDB.queueSize();
+    const online  = navigator.onLine;
+    const offBadge = document.getElementById('offline-badge');
+    const syncBtn  = document.getElementById('sync-btn');
+    const syncCnt  = document.getElementById('sync-count');
+    if (offBadge) offBadge.hidden = online;
+    if (syncBtn)  syncBtn.hidden  = count === 0;
+    if (syncCnt)  syncCnt.textContent = count > 0 ? `↑ ${count}` : '';
+  },
+
+  async registerBgSync() {
+    if (!('serviceWorker' in navigator) || !('SyncManager' in window)) return;
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      await reg.sync.register('upload-evaluations');
+    } catch (_) {}
+  }
+};
+
 // ─── API helper ───────────────────────────────────────────────────────────────
 async function api(file, action, data = null, method = 'GET') {
   const url = `api/${file}.php?action=${action}`;
@@ -26,6 +156,14 @@ const App = {
       if (coach) { this.user = coach; this.showApp(); }
       else { this.showLogin(); }
     } catch { this.showLogin(); }
+
+    window.addEventListener('online', async () => {
+      await Sync.refreshUI();
+      const n = await Sync.upload();
+      if (n > 0 && App.currentTab === 'evaluate') CoachEvaluate.load();
+    });
+    window.addEventListener('offline', () => Sync.refreshUI());
+    await Sync.refreshUI();
   },
 
   showLogin() {
@@ -86,6 +224,8 @@ const App = {
         </div>
         <div class="header-right">
           <span class="welcome-text">Welcome, <span>${escHtml(this.user.name)}</span></span>
+          <span id="offline-badge" class="offline-badge" hidden>Offline</span>
+          <button id="sync-btn" class="sync-btn" hidden onclick="Sync.upload()"><span id="sync-count"></span></button>
           <button class="btn-logout" onclick="App.doLogout()">Sign Out</button>
         </div>
       </div>
@@ -572,12 +712,46 @@ const CoachEvaluate = {
 
   async load() {
     setMain(`<div class="no-session"><div class="big-icon">⚾</div><p class="text-muted">Loading…</p></div>`);
-    const session = await api('sessions', 'active').catch(() => null);
+
+    let session, players, allScoresRaw;
+
+    if (navigator.onLine) {
+      session = await api('sessions', 'active').catch(() => null);
+      if (session) {
+        players      = await fetch(`api/players.php?action=list&division_id=${session.division_id}`).then(r => r.json());
+        allScoresRaw = await fetch(`api/evaluations.php?action=my_all_scores&session_id=${session.id}`).then(r => r.json());
+        // Cache for offline use
+        await OfflineDB.kvSet('session', session);
+        await OfflineDB.kvSet('players', players);
+        await OfflineDB.kvSet('scores',  allScoresRaw);
+      }
+    } else {
+      session      = await OfflineDB.kvGet('session');
+      players      = await OfflineDB.kvGet('players') || [];
+      allScoresRaw = await OfflineDB.kvGet('scores')  || [];
+    }
+
     this.session = session;
     if (!session) { this.renderNoSession(); return; }
+    if (!players.length) { this.renderNoSession(); return; }
 
-    this.players = await fetch(`api/players.php?action=list&division_id=${session.division_id}`).then(r => r.json());
-    await this.loadAllScores();
+    this.players = players;
+
+    // Build allScores from cached raw rows + anything in the local queue
+    this.allScores = {};
+    (allScoresRaw || []).forEach(r => {
+      const si = parseInt(r.skill_index), pid = parseInt(r.player_id);
+      if (!this.allScores[si]) this.allScores[si] = {};
+      this.allScores[si][pid] = parseInt(r.score);
+    });
+
+    // Merge local queue into allScores so UI reflects pending scores
+    const queue = await OfflineDB.getQueue();
+    queue.filter(q => q.session_id === session.id).forEach(q => {
+      if (!this.allScores[q.skill_index]) this.allScores[q.skill_index] = {};
+      this.allScores[q.skill_index][q.player_id] = q.score;
+    });
+
     this.selectedSkillIndex = 0;
     this.buildScoredSet();
     this.localPlayerIndex = this.firstUnscoredIndex();
@@ -585,19 +759,11 @@ const CoachEvaluate = {
     this.mode = 'evaluate';
     this.render();
 
-    App.pollTimer = setInterval(() => this.poll(), 4000);
-  },
+    if (navigator.onLine) {
+      App.pollTimer = setInterval(() => this.poll(), 4000);
+    }
 
-  async loadAllScores() {
-    const s = this.session;
-    const rows = await fetch(`api/evaluations.php?action=my_all_scores&session_id=${s.id}`).then(r => r.json());
-    this.allScores = {};
-    rows.forEach(r => {
-      const si = parseInt(r.skill_index);
-      const pid = parseInt(r.player_id);
-      if (!this.allScores[si]) this.allScores[si] = {};
-      this.allScores[si][pid] = parseInt(r.score);
-    });
+    await Sync.refreshUI();
   },
 
   buildScoredSet() {
@@ -640,7 +806,7 @@ const CoachEvaluate = {
   },
 
   async poll() {
-    if (App.currentTab !== 'evaluate') return;
+    if (App.currentTab !== 'evaluate' || !navigator.onLine) return;
     const session = await api('sessions', 'active').catch(() => null);
     if (!session) { clearInterval(App.pollTimer); this.renderNoSession(); return; }
     this.session = session;
@@ -747,6 +913,7 @@ const CoachEvaluate = {
     setMain(`
       <div class="eval-screen">
         <div class="skill-progress">${this.skillStepsHtml()}</div>
+        ${!navigator.onLine ? '<div class="offline-notice">Offline — scores saving locally</div>' : ''}
         <div class="player-search-wrap">
           <span class="psr-icon">🔍</span>
           <input class="player-search-input" id="player-search-input" type="search"
@@ -898,18 +1065,34 @@ const CoachEvaluate = {
     const p  = this.players[this.localPlayerIndex];
     const si = this.selectedSkillIndex;
     if (!p || !this.selectedScore) return;
-    try {
-      await api('evaluations', 'submit', {
-        session_id: s.id, player_id: p.id,
-        skill_index: si, score: this.selectedScore
-      });
-      if (!this.allScores[si]) this.allScores[si] = {};
-      this.allScores[si][p.id] = this.selectedScore;
-      this.scoredSet.add(p.id);
-      this.selectedScore = null;
-      this.localPlayerIndex = this.firstUnscoredIndex();
-      this.render();
-    } catch (e) { alert(e.message); }
+
+    const payload = { session_id: s.id, player_id: p.id, skill_index: si, score: this.selectedScore };
+
+    if (navigator.onLine) {
+      try {
+        await api('evaluations', 'submit', payload);
+      } catch {
+        await OfflineDB.enqueue(payload);
+        await Sync.registerBgSync();
+      }
+    } else {
+      await OfflineDB.enqueue(payload);
+      await Sync.registerBgSync();
+    }
+
+    if (!this.allScores[si]) this.allScores[si] = {};
+    this.allScores[si][p.id] = this.selectedScore;
+    this.scoredSet.add(p.id);
+    this.selectedScore = null;
+    this.localPlayerIndex = this.firstUnscoredIndex();
+
+    // Update cached scores
+    await OfflineDB.kvSet('scores', Object.entries(this.allScores).flatMap(([si, players]) =>
+      Object.entries(players).map(([pid, score]) => ({ skill_index: si, player_id: pid, score }))
+    ));
+
+    this.render();
+    await Sync.refreshUI();
   },
 
   // Submit updated score from review/score mode
@@ -924,27 +1107,35 @@ const CoachEvaluate = {
     const si = this.viewSkillIndex;
     if (!p || !this.selectedScore) return;
     try {
-      await api('evaluations', 'submit', {
-        session_id: s.id, player_id: p.id,
-        skill_index: si, score: this.selectedScore
-      });
-      if (!this.allScores[si]) this.allScores[si] = {};
-      this.allScores[si][p.id] = this.selectedScore;
-      if (si === this.selectedSkillIndex) {
-        this.scoredSet.add(p.id);
-        this.localPlayerIndex = this.firstUnscoredIndex();
-      }
-      this.selectedScore = null;
-      const next = this.editPlayerIndex + 1;
-      if (next < this.players.length) {
-        this.editPlayerIndex = next;
-        this.selectedScore = this.allScores[si]?.[this.players[next].id] ?? null;
-        this.render();
+      if (navigator.onLine) {
+        await api('evaluations', 'submit', {
+          session_id: s.id, player_id: p.id, skill_index: si, score: this.selectedScore
+        });
       } else {
-        this.mode = 'list';
-        this.render();
+        await OfflineDB.enqueue({ session_id: s.id, player_id: p.id, skill_index: si, score: this.selectedScore });
+        await Sync.registerBgSync();
       }
-    } catch (e) { alert(e.message); }
+    } catch {
+      await OfflineDB.enqueue({ session_id: s.id, player_id: p.id, skill_index: si, score: this.selectedScore });
+      await Sync.registerBgSync();
+    }
+    if (!this.allScores[si]) this.allScores[si] = {};
+    this.allScores[si][p.id] = this.selectedScore;
+    if (si === this.selectedSkillIndex) {
+      this.scoredSet.add(p.id);
+      this.localPlayerIndex = this.firstUnscoredIndex();
+    }
+    this.selectedScore = null;
+    const next = this.editPlayerIndex + 1;
+    if (next < this.players.length) {
+      this.editPlayerIndex = next;
+      this.selectedScore = this.allScores[si]?.[this.players[next].id] ?? null;
+      this.render();
+    } else {
+      this.mode = 'list';
+      this.render();
+    }
+    await Sync.refreshUI();
   }
 };
 

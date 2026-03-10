@@ -482,6 +482,27 @@ tr:hover td { background: var(--blue-dim); }
 .eval-screen .card-pad       { padding: 14px 16px; }
 .eval-screen .score-grid     { margin-bottom: 0; }
 
+/* ── Offline indicator ───────────────────────────────── */
+.offline-badge {
+  background: var(--red-dim); border: 1px solid rgba(220,38,38,0.25);
+  color: var(--red); font-size: 11px; font-weight: 700;
+  padding: 3px 10px; border-radius: 20px; letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.sync-btn {
+  background: var(--blue-dim); border: 1px solid var(--blue-border);
+  color: var(--blue); font-size: 12px; font-weight: 700;
+  padding: 4px 12px; border-radius: 20px; cursor: pointer;
+  font-family: inherit; transition: all 0.12s;
+}
+.sync-btn:hover { background: var(--blue); color: #fff; }
+.offline-notice {
+  text-align: center; font-size: 12px; font-weight: 600;
+  color: var(--red); background: var(--red-dim);
+  border: 1px solid rgba(220,38,38,0.2);
+  border-radius: 8px; padding: 6px 12px; flex-shrink: 0;
+}
+
 /* ── MOBILE ──────────────────────────────────────── */
 @media (max-width: 768px) {
 
