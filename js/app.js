@@ -736,25 +736,27 @@ const CoachEvaluate = {
     }).join('');
 
     setMain(`
-      <div class="skill-progress">${this.skillStepsHtml()}</div>
-      <div class="player-card">
-        <div class="player-number">#${num}</div>
-        <div class="player-name">${escHtml(player.name)}</div>
-        <p class="player-sub">${player.position !== 'Player' ? escHtml(player.position) : ''}${player.age ? `${player.position !== 'Player' ? ' • ' : ''}Age ${player.age}` : ''}</p>
-        <div class="player-nav">
-          <button class="player-nav-btn" onclick="CoachEvaluate.prevPlayer()" ${atFirst ? 'disabled' : ''}>‹</button>
-          <span class="player-nav-info">
-            ${this.localPlayerIndex + 1} of ${this.players.length}
-            ${isScored ? '<br><span class="player-nav-scored">✓ scored</span>' : ''}
-          </span>
-          <button class="player-nav-btn" onclick="CoachEvaluate.nextPlayer()" ${atLast ? 'disabled' : ''}>›</button>
+      <div class="eval-screen">
+        <div class="skill-progress">${this.skillStepsHtml()}</div>
+        <div class="player-card">
+          <div class="player-number">#${num}</div>
+          <div class="player-name">${escHtml(player.name)}</div>
+          <p class="player-sub">${player.position !== 'Player' ? escHtml(player.position) : ''}${player.age ? `${player.position !== 'Player' ? ' • ' : ''}Age ${player.age}` : ''}</p>
+          <div class="player-nav">
+            <button class="player-nav-btn" onclick="CoachEvaluate.prevPlayer()" ${atFirst ? 'disabled' : ''}>‹</button>
+            <span class="player-nav-info">
+              ${this.localPlayerIndex + 1} of ${this.players.length}
+              ${isScored ? '<br><span class="player-nav-scored">✓ scored</span>' : ''}
+            </span>
+            <button class="player-nav-btn" onclick="CoachEvaluate.nextPlayer()" ${atLast ? 'disabled' : ''}>›</button>
+          </div>
+          <p class="player-count">${remaining} remaining</p>
+          <div><span class="skill-label">${skill.toUpperCase()}</span></div>
         </div>
-        <p class="player-count">${remaining} remaining</p>
-        <div><span class="skill-label">${skill.toUpperCase()}</span></div>
-      </div>
-      <div class="card card-pad">
-        <p class="text-muted text-sm mb16" style="text-align:center;text-transform:uppercase;letter-spacing:.1em">Tap to score: ${skill}</p>
-        <div class="score-grid">${scoreButtons}</div>
+        <div class="card card-pad">
+          <p class="text-muted text-sm mb16" style="text-align:center;text-transform:uppercase;letter-spacing:.1em">Tap to score: ${skill}</p>
+          <div class="score-grid">${scoreButtons}</div>
+        </div>
       </div>`);
   },
 

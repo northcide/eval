@@ -444,6 +444,32 @@ tr:hover td { background: rgba(77,101,255,0.04); }
 .import-box { background: var(--bg3); border: 1px solid var(--border2); border-radius: var(--radius); padding: 20px; margin-bottom: 20px; }
 .code-hint { color: var(--blue); font-family: monospace; font-size: 13px; }
 
+/* ── Evaluate screen — no-scroll flex layout ────── */
+.eval-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  /* fill viewport minus header (60px) and content padding (top 32px + bottom 32px) */
+  height: calc(100dvh - 60px - 64px);
+}
+.eval-screen .skill-progress { margin-bottom: 0; flex-shrink: 0; }
+.eval-screen .player-card {
+  flex: 1; min-height: 0;
+  margin-bottom: 0;
+  padding: 16px 20px;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+}
+.eval-screen .player-number  { font-size: 26px; margin-bottom: 6px; }
+.eval-screen .player-name    { font-size: 20px; margin-bottom: 4px; }
+.eval-screen .player-sub     { font-size: 13px; }
+.eval-screen .player-count   { font-size: 11px; }
+.eval-screen .skill-label    { margin-top: 8px; padding: 5px 14px; font-size: 12px; }
+.eval-screen .player-nav     { margin: 6px 0 2px; }
+.eval-screen .card { flex-shrink: 0; }
+.eval-screen .card-pad       { padding: 14px 16px; }
+.eval-screen .score-grid     { margin-bottom: 0; }
+
 /* ── MOBILE ──────────────────────────────────────── */
 @media (max-width: 768px) {
 
@@ -474,6 +500,9 @@ tr:hover td { background: rgba(77,101,255,0.04); }
   }
 
   .content { padding: 16px 16px 84px; }
+
+  /* Mobile eval-screen: minus header (60px), top pad (16px), bottom pad (84px) */
+  .eval-screen { height: calc(100dvh - 60px - 100px); }
 
   .header { padding: 0 16px; height: 60px; }
   .header-title { font-size: 15px; }
