@@ -39,10 +39,17 @@ body {
 }
 
 /* ── Layout ─────────────────────────────────────── */
-#app { min-height: 100vh; display: flex; flex-direction: column; }
-.main-layout { display: flex; flex: 1; min-height: calc(100vh - 60px - env(safe-area-inset-top)); }
+#app {
+  height: 100svh;
+  height: -webkit-fill-available; /* iOS PWA */
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.main-layout { display: flex; flex: 1; min-height: 0; overflow: hidden; }
 .sidebar { width: 210px; background: var(--bg2); border-right: 1px solid var(--border); padding: 20px 12px; flex-shrink: 0; }
-.content { flex: 1; padding: 32px; overflow-y: auto; }
+.content { flex: 1; min-height: 0; padding: 32px; overflow-y: auto; }
+
+/* Eval mode — disable content scroll so eval-screen fills height */
+.content.eval-mode { overflow: hidden; padding: 0; }
 
 /* ── Header ─────────────────────────────────────── */
 .header {
@@ -453,8 +460,8 @@ tr:hover td { background: rgba(77,101,255,0.04); }
   display: flex;
   flex-direction: column;
   gap: 10px;
-  /* fill viewport minus header (60px) and content padding (top 32px + bottom 32px) */
-  height: calc(100dvh - 60px - 64px);
+  /* Desktop: fill viewport minus header and content padding */
+  height: calc(100svh - 60px - env(safe-area-inset-top) - 64px);
 }
 .eval-screen .skill-progress { margin-bottom: 0; flex-shrink: 0; }
 .eval-screen .player-card {
@@ -477,7 +484,7 @@ tr:hover td { background: rgba(77,101,255,0.04); }
 /* ── MOBILE ──────────────────────────────────────── */
 @media (max-width: 768px) {
 
-  .main-layout { flex-direction: column; min-height: calc(100vh - 60px - env(safe-area-inset-top)); }
+  .main-layout { flex-direction: column; }
   .sidebar {
     position: fixed; bottom: 0; left: 0; right: 0;
     width: 100%;
@@ -506,17 +513,16 @@ tr:hover td { background: rgba(77,101,255,0.04); }
   /* Content clears bottom tab bar + safe area */
   .content { padding: 16px 16px calc(80px + env(safe-area-inset-bottom)); }
 
-  /* Eval screen: fixed position pins it exactly between header and tab bar.
-     No calc() needed — the browser handles safe areas via the anchor points. */
+  /* Eval mode: content becomes a fixed-height non-scrolling container */
+  .content.eval-mode { overflow: hidden; padding: 0; }
+
+  /* Eval screen fills the content box and pads for the tab bar internally */
   .eval-screen {
-    position: fixed;
-    top: calc(60px + env(safe-area-inset-top));
-    bottom: calc(64px + env(safe-area-inset-bottom));
-    left: 0; right: 0;
-    padding: 12px 16px;
-    height: auto;
-    overflow: hidden;
+    position: static;
+    height: 100%;
+    padding: 12px 16px calc(64px + env(safe-area-inset-bottom) + 12px);
     box-sizing: border-box;
+    overflow: hidden;
   }
 
   .header { padding: env(safe-area-inset-top) 16px 0; height: calc(60px + env(safe-area-inset-top)); }
