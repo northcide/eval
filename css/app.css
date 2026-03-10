@@ -508,19 +508,22 @@ tr:hover td { background: var(--blue-dim); }
 
   /* Few tabs (coach view): pill buttons */
   .sidebar-few {
+    height: calc(52px + env(safe-area-inset-bottom));
     display: flex; flex-direction: row;
     align-items: center; justify-content: center;
-    gap: 10px; padding: 0 16px env(safe-area-inset-bottom);
+    gap: 10px;
+    padding: 6px 16px env(safe-area-inset-bottom);
   }
   .sidebar-few .nav-btn {
     flex: 0 1 160px !important;
     flex-direction: row !important;
     gap: 8px; font-size: 14px; font-weight: 600;
     justify-content: center; align-items: center;
-    border-radius: 12px !important;
+    border-radius: 10px !important;
     border: 1px solid var(--border2) !important;
     border-top: 1px solid var(--border2) !important;
-    min-height: 46px; background: var(--bg4); padding: 10px 16px;
+    min-height: 0; height: 40px;
+    background: var(--bg4); padding: 0 16px;
   }
   .sidebar-few .nav-btn.active {
     background: var(--blue) !important;
@@ -528,7 +531,7 @@ tr:hover td { background: var(--blue-dim); }
     border-top-color: var(--blue) !important;
     color: #fff;
   }
-  .sidebar-few .nav-icon { font-size: 18px; width: auto; }
+  .sidebar-few .nav-icon { font-size: 17px; width: auto; }
 
   .nav-btn.active {
     background: none;
