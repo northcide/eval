@@ -139,13 +139,71 @@ Bob Jones, 10, Catcher, Majors
 
 ---
 
+## 📱 Installing as a PWA (Home Screen App)
+
+Scout Pro is a Progressive Web App — coaches and admins can install it to their home screen for a full-screen, app-like experience with offline support.
+
+### iPhone / iPad (Safari)
+
+1. Open the app URL in **Safari** (must be Safari — Chrome on iOS cannot install PWAs)
+2. Tap the **Share** button (box with arrow pointing up) in the toolbar
+3. Scroll down and tap **Add to Home Screen**
+4. Give it a name (e.g. "Scout Pro") and tap **Add**
+
+The app icon will appear on your home screen. Launch it from there for full-screen mode.
+
+### Android (Chrome)
+
+1. Open the app URL in **Chrome**
+2. Tap the **three-dot menu** (⋮) in the top-right corner
+3. Tap **Add to Home screen** (or Chrome may show an install banner automatically)
+4. Tap **Add**
+
+On Android, Chrome may also display an **"Install app"** prompt in the address bar — tap it for a one-tap install.
+
+---
+
+## 📡 Offline / Poor Connectivity Support
+
+Scout Pro works in areas with no or unreliable internet. Here's how it handles connectivity:
+
+### How it works
+
+- **First use:** Open the app and navigate to the Evaluate tab while connected. The app automatically downloads and caches the player list, session data, and your previous scores to the device.
+- **Offline or poor signal:** The app reads from the local cache. You can score players normally — evaluations are saved to the device.
+- **Reconnected:** Queued scores upload to the server automatically. On Android, this can happen in the background even if the app is closed.
+
+### What you'll see
+
+| Indicator | Meaning |
+|-----------|---------|
+| **"Offline"** badge in the header | Device has no network connection |
+| **"Sync (N pending)"** button | N scores saved locally, not yet uploaded |
+| **"You are offline…"** banner on Evaluate tab | Scoring in offline mode |
+
+Tap **Sync** at any time while connected to manually trigger an upload.
+
+### Platform notes
+
+- **iOS (Safari):** Upload triggers automatically when the device reconnects. Keep the app open when returning to connectivity.
+- **Android (Chrome):** Uses the Background Sync API — scores can upload even if the browser is in the background or the screen is off.
+- **Data safety:** Scores are never lost. If a submission fails mid-upload, the remaining items stay in the queue and retry on next sync.
+
+### Recommended field workflow
+
+1. **Before leaving WiFi:** Open the app → go to Evaluate → let it load the player list
+2. **At the field:** Evaluate normally — the "Offline" badge will appear if connectivity drops
+3. **Back on WiFi:** The sync happens automatically; verify scores uploaded via the Results tab
+
+---
+
 ## 🎯 Evaluation Flow
 
 1. Admin creates **Divisions**, adds **Players** and **Coaches**
 2. Admin starts an **Evaluation Session** for a division
 3. Coaches log in → **Evaluate** tab shows the current player + skill
 4. Each coach scores the player (1–10) and taps **Next Player**
-5. All players complete one skill before advancing to the next
+5. Coaches can freely switch between skills using the skill steps at the top
 6. **Results** tab: admin sees all coaches' scores; coaches see only their own
 
 ---
