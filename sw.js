@@ -1,12 +1,16 @@
 const CACHE = 'scout-pro-v1';
+
+// Derive base path from wherever sw.js is located — works on any host/subdirectory
+const BASE = self.location.pathname.replace(/sw\.js$/, '');
+
 const STATIC = [
-  '/eval/',
-  '/eval/index.html',
-  '/eval/css/app.css',
-  '/eval/js/app.js',
-  '/eval/manifest.json',
-  '/eval/icons/icon-192.png',
-  '/eval/icons/icon-512.png'
+  BASE,
+  BASE + 'index.html',
+  BASE + 'css/app.css',
+  BASE + 'js/app.js',
+  BASE + 'manifest.json',
+  BASE + 'icons/icon-192.png',
+  BASE + 'icons/icon-512.png'
 ];
 
 self.addEventListener('install', e => {
@@ -27,7 +31,7 @@ self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
 
   // Always go network-first for API calls
-  if (url.pathname.startsWith('/eval/api/')) {
+  if (url.pathname.startsWith(BASE + 'api/')) {
     e.respondWith(
       fetch(e.request).catch(() => new Response(JSON.stringify({ error: 'Offline' }), {
         headers: { 'Content-Type': 'application/json' }

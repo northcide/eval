@@ -157,21 +157,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception('Could not write api/config.php — check that the web server has write permission to that file (try: chmod 664 api/config.php).');
             }
 
-            // Update manifest.json and sw.js with correct app URL if provided
-            if ($appurl) {
-                $manifest = json_decode(file_get_contents(__DIR__ . '/manifest.json'), true);
-                $manifest['start_url'] = $appurl . '/';
-                $manifest['scope']     = $appurl . '/';
-                foreach ($manifest['icons'] as &$icon) {
-                    $icon['src'] = $appurl . '/icons/' . basename($icon['src']);
-                }
-                file_put_contents(__DIR__ . '/manifest.json', json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
-
-                $sw = file_get_contents(__DIR__ . '/sw.js');
-                $sw = str_replace('/eval/', $appurl . '/', $sw);
-                file_put_contents(__DIR__ . '/sw.js', $sw);
-            }
-
             $success = true;
             $appLink = $appurl ?: '.';
 
@@ -272,12 +257,6 @@ $guessUrl = $proto . '://' . $host_hdr . $dir;
         <input name="admin_pass" type="password" placeholder="Set your admin password" value="admin123" />
         <p class="hint">Login as <strong>Administrator</strong> with this password</p>
       </div>
-      <div class="field">
-        <label>App URL (no trailing slash)</label>
-        <input name="app_url" value="<?= htmlspecialchars($guessUrl) ?>" placeholder="https://yourdomain.com/eval" />
-        <p class="hint">Used for PWA install links and offline caching</p>
-      </div>
-
       <button type="submit" class="btn">Install Scout Pro →</button>
     </form>
   </div>
