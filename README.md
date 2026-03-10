@@ -15,42 +15,73 @@ No Node.js, no build step — just drop it on a LAMP server.
 
 ## 🚀 Installation
 
-### Step 1 — Create the database
+Two options: the **web installer** (recommended for cPanel/shared hosting) or **manual setup**.
 
-Log into MySQL and run the schema file:
+---
+
+### Option A — Web Installer (cPanel / shared hosting)
+
+`setup.php` creates the database tables, writes `api/config.php`, and deletes itself when done.
+
+**1. Create a MySQL database and user in cPanel**
+
+In cPanel → **MySQL Databases**:
+- Create a new database (e.g. `john_scoutpro`)
+- Create a database user with a password
+- Add the user to the database with **All Privileges**
+
+**2. Upload the files**
+
+Upload the entire project folder to your host via FTP or the cPanel File Manager (e.g. into `public_html/eval/`).
+
+**3. Run the installer**
+
+Visit in your browser:
+```
+https://yourdomain.com/eval/setup.php
+```
+
+Fill in your database host (usually `localhost`), name, username, password, and choose an admin password. Click **Install Scout Pro**.
+
+The installer creates all tables, writes `api/config.php`, and deletes itself automatically.
+
+**4. Open the app**
+```
+https://yourdomain.com/eval/
+```
+
+Log in as `Administrator` with the password you set during setup.
+
+---
+
+### Option B — Manual Setup
+
+**1. Create the database**
 
 ```bash
 mysql -u root -p < sql/schema.sql
 ```
 
-Or from within MySQL:
-```sql
-SOURCE /path/to/scout-pro/sql/schema.sql;
-```
+**2. Configure the connection**
 
-### Step 2 — Configure the database connection
-
-Edit **`api/config.php`** and update these four lines:
+Edit `api/config.php`:
 
 ```php
-define('DB_HOST', 'localhost');   // your MySQL host
-define('DB_NAME', 'scout_pro');   // database name (created by schema.sql)
-define('DB_USER', 'root');        // your MySQL username
-define('DB_PASS', '');            // your MySQL password
+define('DB_HOST', 'localhost');
+define('DB_NAME', 'scout_pro');
+define('DB_USER', 'root');
+define('DB_PASS', '');
 ```
 
-### Step 3 — Deploy the files
-
-Copy the entire `scout-pro/` folder into your web root:
+**3. Deploy**
 
 ```bash
-cp -r scout-pro/ /var/www/html/scout-pro
+cp -r eval/ /var/www/html/eval
 ```
 
-### Step 4 — Open in browser
-
+**4. Open in browser**
 ```
-http://your-server/scout-pro/
+http://your-server/eval/
 ```
 
 ---
