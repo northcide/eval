@@ -506,13 +506,14 @@ tr:hover td { background: var(--blue-dim); }
   }
   .nav-icon { font-size: 20px; line-height: 1; width: auto; }
 
-  /* Few tabs (coach view): pill buttons */
+  /* Few tabs (coach view): compact pill buttons, height auto so no dead white space */
   .sidebar-few {
-    height: calc(52px + env(safe-area-inset-bottom));
+    height: auto !important;
     display: flex; flex-direction: row;
     align-items: center; justify-content: center;
     gap: 10px;
-    padding: 6px 16px env(safe-area-inset-bottom);
+    padding: 8px 20px !important;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom)) !important;
   }
   .sidebar-few .nav-btn {
     flex: 0 1 160px !important;
@@ -522,7 +523,7 @@ tr:hover td { background: var(--blue-dim); }
     border-radius: 10px !important;
     border: 1px solid var(--border2) !important;
     border-top: 1px solid var(--border2) !important;
-    min-height: 0; height: 40px;
+    min-height: 0 !important; height: 40px !important;
     background: var(--bg4); padding: 0 16px;
   }
   .sidebar-few .nav-btn.active {
@@ -539,7 +540,7 @@ tr:hover td { background: var(--blue-dim); }
     color: var(--blue);
   }
 
-  .content { padding: 16px 16px calc(78px + env(safe-area-inset-bottom)); }
+  .content { padding: 16px 16px calc(72px + env(safe-area-inset-bottom)); }
   .content.eval-mode { overflow: hidden; padding: 0; }
 
   .eval-screen {
