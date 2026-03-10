@@ -722,6 +722,39 @@ const CoachEvaluate = {
     this.renderEvaluate();
   },
 
+  // ── Jump-to-player search ──
+  filterPlayers(q) {
+    const drop = document.getElementById('player-search-drop');
+    if (!drop) return;
+    q = q.trim().toLowerCase();
+    if (!q) { drop.innerHTML = ''; drop.hidden = true; return; }
+    const matches = this.players
+      .map((p, i) => ({ p, i }))
+      .filter(({ p }) =>
+        p.name.toLowerCase().includes(q) ||
+        playerNumber(p.id).includes(q)
+      )
+      .slice(0, 8);
+    if (!matches.length) { drop.innerHTML = '<div class="psr-empty">No match</div>'; drop.hidden = false; return; }
+    drop.innerHTML = matches.map(({ p, i }) => {
+      const scored = this.scoredSet.has(p.id);
+      return `<button class="psr-item" onmousedown="CoachEvaluate.jumpToPlayer(${i})">
+        <span class="psr-num">#${playerNumber(p.id)}</span>
+        <span class="psr-name">${escHtml(p.name)}</span>
+        ${scored ? '<span class="psr-check">✓</span>' : ''}
+      </button>`;
+    }).join('');
+    drop.hidden = false;
+  },
+
+  jumpToPlayer(i) {
+    this.localPlayerIndex = i;
+    const pid = this.players[i].id;
+    this.selectedScore = this.allScores[this.session.current_skill_index]?.[pid] ?? null;
+    this.mode = 'evaluate';
+    this.render();
+  },
+
   // ── Evaluate: score next unscored player ──
   renderEvaluate() {
     const s = this.session;
@@ -741,6 +774,14 @@ const CoachEvaluate = {
     setMain(`
       <div class="eval-screen">
         <div class="skill-progress">${this.skillStepsHtml()}</div>
+        <div class="player-search-wrap">
+          <span class="psr-icon">🔍</span>
+          <input class="player-search-input" id="player-search-input" type="search"
+            placeholder="Jump to player…" autocomplete="off" autocorrect="off"
+            oninput="CoachEvaluate.filterPlayers(this.value)"
+            onblur="setTimeout(()=>{const d=document.getElementById('player-search-drop');if(d)d.hidden=true;},150)" />
+          <div class="player-search-drop" id="player-search-drop" hidden></div>
+        </div>
         <div class="player-card">
           <div class="player-number">#${num}</div>
           <div class="player-name">${escHtml(player.name)}</div>
