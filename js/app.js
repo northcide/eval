@@ -189,6 +189,7 @@ const Divisions = {
       <div class="form-row mb16">
         <div class="grow"><input id="div-name" placeholder="Division name (e.g. Majors, AAA)" /></div>
         <button class="btn btn-primary" onclick="Divisions.add()">＋ Add</button>
+        <button class="btn btn-demo" onclick="Demo.seedDivisions()">⚡ Demo Data</button>
       </div>
       <div id="div-alert"></div>
       <div class="card-grid">${cards}</div>`);
@@ -280,6 +281,7 @@ const Players = {
           </div>
           <button class="btn btn-primary" onclick="Players.add()">＋ Add</button>
           <button class="btn btn-secondary" onclick="Players.toggleImport()">↑ Import CSV</button>
+          <button class="btn btn-demo" onclick="Demo.seedPlayers()">⚡ Demo Data</button>
         </div>
       </div>
 
@@ -422,6 +424,7 @@ const Coaches = {
         <div class="grow"><input id="c-name" placeholder="Coach name" /></div>
         <div class="med"><input id="c-pass" type="password" placeholder="Password" /></div>
         <button class="btn btn-primary" onclick="Coaches.add()">＋ Add Coach</button>
+        <button class="btn btn-demo" onclick="Demo.seedCoaches()">⚡ Demo Data</button>
       </div>
       <div id="coaches-alert"></div>
       <div class="card-grid">${cards}</div>`);
@@ -1013,6 +1016,36 @@ const Results = {
   filterBy(divId) {
     this.filterDiv = divId;
     this.render();
+  }
+};
+
+// ─── DEMO DATA ────────────────────────────────────────────────────────────────
+const Demo = {
+  async seedDivisions() {
+    if (!confirm('Add demo divisions (Majors, AAA, AA, Single-A)?\nExisting divisions will not be removed.')) return;
+    try {
+      const res = await api('demo', 'divisions');
+      showAlert('div-alert', res.message, 'success');
+      Divisions.load();
+    } catch (e) { showAlert('div-alert', e.message); }
+  },
+
+  async seedPlayers() {
+    if (!confirm('Reset ALL players and create 100 demo players per division?\n\nThis will delete all existing players and their scores.')) return;
+    try {
+      const res = await api('demo', 'players');
+      showAlert('players-alert', res.message, 'success');
+      Players.load();
+    } catch (e) { showAlert('players-alert', e.message); }
+  },
+
+  async seedCoaches() {
+    if (!confirm('Reset all coaches (except Administrator) and create 10 demo coaches?\n\nDemo coach password: coach123')) return;
+    try {
+      const res = await api('demo', 'coaches');
+      showAlert('coaches-alert', res.message, 'success');
+      Coaches.load();
+    } catch (e) { showAlert('coaches-alert', e.message); }
   }
 };
 
