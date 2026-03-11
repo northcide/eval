@@ -209,8 +209,14 @@ const App = {
     btn.textContent = 'Signing in…';
 
     try {
-      const { coach } = await api('auth', 'login', { name, password: pass });
-      this.user = coach;
+      const result = await api('auth', 'login', { name, password: pass });
+      if (result.needs_league_select) {
+        this.showLeaguePicker(result.leagues);
+        btn.disabled = false;
+        btn.textContent = 'Sign In';
+        return;
+      }
+      this.user = result.coach;
       this.showApp();
     } catch (e) {
       const msg = e.message?.includes('fetch') || e.message?.includes('network') || e.message?.includes('Failed')
@@ -220,6 +226,43 @@ const App = {
       btn.disabled = false;
       btn.textContent = 'Sign In';
     }
+  },
+
+  showLeaguePicker(leagues) {
+    const items = leagues.map(l => `
+      <div class="league-card" style="cursor:pointer" onclick="App.selectLeague(${l.id})">
+        <div class="league-icon">🏆</div>
+        <div class="league-card-info">
+          <div class="league-name">${escHtml(l.name)}</div>
+          <div class="text-xs text-dim">${l.is_admin ? 'Administrator' : 'Coach'}</div>
+        </div>
+        <div class="league-card-actions">
+          <button class="btn btn-sm btn-primary">Select →</button>
+        </div>
+      </div>`).join('');
+
+    document.getElementById('app').innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--bg1)">
+        <div style="width:100%;max-width:460px;padding:24px">
+          <div style="text-align:center;margin-bottom:24px">
+            <div style="font-size:40px">⚾</div>
+            <h2 style="font-size:20px;font-weight:700;margin:8px 0 4px">Select a League</h2>
+            <p class="text-dim text-sm">You belong to multiple leagues. Choose one to continue.</p>
+          </div>
+          <div class="league-list">${items}</div>
+          <div style="text-align:center;margin-top:16px">
+            <button class="btn btn-secondary" onclick="App.showLogin()">← Back</button>
+          </div>
+        </div>
+      </div>`;
+  },
+
+  async selectLeague(leagueId) {
+    try {
+      const { coach } = await api('auth', 'select_league', { league_id: leagueId });
+      this.user = coach;
+      this.showApp();
+    } catch (e) { alert(e.message); }
   },
 
   async doLogout() {
@@ -351,8 +394,8 @@ function renderLogin() {
       <div class="login-card">
         <form id="login-form">
           <div class="field-group">
-            <label class="field-label">Coach Name</label>
-            <input id="login-name" placeholder="Enter your name" autocomplete="username"
+            <label class="field-label">Email or Name</label>
+            <input id="login-name" placeholder="Email or name" autocomplete="username"
               oninput="document.getElementById('login-error').classList.add('hidden')" />
           </div>
           <div class="field-group">
@@ -929,19 +972,25 @@ const Coaches = {
       ? coaches.map(c => {
           const isSelf = c.id === App.user.id;
           const isSuperAdminTarget = c.league_id === null;
+          const isGuest = !!c.is_guest;
           const canToggleAdmin = !isSelf && !isSuperAdminTarget;
           const adminToggleBtn = canToggleAdmin
             ? `<button class="btn-edit" onclick="Coaches.toggleAdmin(${c.id},${c.is_admin ? 0 : 1})">${c.is_admin ? '⬇ Demote' : '⬆ Make Admin'}</button>`
             : '';
+          const deleteBtn = !isSuperAdminTarget && !isSelf
+            ? `<button class="btn-danger" title="${isGuest ? 'Remove from league' : 'Delete account'}" onclick="Coaches.delete(${c.id})">${isGuest ? '✕' : '🗑'}</button>`
+            : '';
+          const nameLine = escHtml(c.name) + (isGuest ? ' <span class="badge-guest">Guest</span>' : '');
+          const emailLine = c.email ? `<div class="text-xs text-dim">${escHtml(c.email)}</div>` : '';
           return `<tr>
             <td>${isSuperAdminTarget ? '⭐' : c.is_admin ? '🛡' : '👤'}</td>
-            <td>${escHtml(c.name)}</td>
+            <td>${nameLine}${emailLine}</td>
             <td>${isSuperAdminTarget ? 'Superadmin' : c.is_admin ? 'Administrator' : 'Coach'}</td>
             ${isSuperAdmin ? `<td class="text-dim">${escHtml(c.league_name || '—')}</td>` : ''}
             <td style="white-space:nowrap">
               ${adminToggleBtn}
               <button class="btn-edit" onclick="Coaches.showResetModal(${c.id})">🔑 Reset</button>
-              ${!c.is_admin && !isSuperAdminTarget ? `<button class="btn-danger" onclick="Coaches.delete(${c.id})">🗑</button>` : ''}
+              ${deleteBtn}
             </td>
           </tr>`;
         }).join('')
@@ -950,13 +999,23 @@ const Coaches = {
     setMain(`
       <h2 class="section-title">Coaches</h2>
       <div class="card card-pad mb16">
-        <p class="text-muted text-sm mb12" style="text-transform:uppercase;letter-spacing:.1em">Add Coach</p>
+        <p class="text-muted text-sm mb12" style="text-transform:uppercase;letter-spacing:.1em">Add New Coach</p>
+        <div class="form-row mb8">
+          <div class="grow"><input id="c-name" placeholder="Name" /></div>
+          <div class="grow"><input id="c-email" type="email" placeholder="Email (optional)" /></div>
+        </div>
         <div class="form-row">
-          <div class="grow"><input id="c-name" placeholder="Coach name" /></div>
           <div class="med"><input id="c-pass" type="password" placeholder="Password" /></div>
           <button class="btn btn-primary" onclick="Coaches.add()">＋ Add Coach</button>
           <button class="btn btn-demo" onclick="Demo.seedCoaches()">⚡ Demo Data</button>
         </div>
+      </div>
+      <div class="card card-pad mb16">
+        <p class="text-muted text-sm mb12" style="text-transform:uppercase;letter-spacing:.1em">Add Existing Coach to League</p>
+        <div class="form-row">
+          <div class="grow"><input id="c-search" placeholder="Search by name or email…" oninput="Coaches.searchExisting()" /></div>
+        </div>
+        <div id="c-search-results" class="mt8"></div>
       </div>
       <div id="coaches-alert" class="mb8"></div>
       <div class="table-wrap">
@@ -1019,11 +1078,12 @@ const Coaches = {
   },
 
   async add() {
-    const name = document.getElementById('c-name').value.trim();
-    const pass = document.getElementById('c-pass').value;
+    const name  = document.getElementById('c-name').value.trim();
+    const email = document.getElementById('c-email').value.trim() || null;
+    const pass  = document.getElementById('c-pass').value;
     if (!name || !pass) return showAlert('coaches-alert', 'Name and password required');
     try {
-      await api('coaches', 'create', { name, password: pass });
+      await api('coaches', 'create', { name, email, password: pass });
       this.load();
     } catch (e) { showAlert('coaches-alert', e.message); }
   },
@@ -1034,6 +1094,41 @@ const Coaches = {
     if (!confirm(`${makeAdmin ? 'Promote' : 'Demote'} ${coach?.name ?? 'this coach'}${makeAdmin ? ' to Administrator' : ' to Coach'}?`)) return;
     try {
       await api('coaches', 'set_admin', { id, is_admin: makeAdmin });
+      this.load();
+    } catch (e) { alert(e.message); }
+  },
+
+  async searchExisting() {
+    const q = document.getElementById('c-search').value.trim();
+    const el = document.getElementById('c-search-results');
+    if (q.length < 2) { el.innerHTML = ''; return; }
+    try {
+      const url = `api/coaches.php?action=search&q=${encodeURIComponent(q)}${App.managingLeague ? '&managing_league_id=' + App.managingLeague.id : ''}`;
+      const res = await fetch(url, { credentials: 'same-origin' });
+      const results = await res.json();
+      if (!results.length) { el.innerHTML = '<p class="text-dim text-sm">No coaches found.</p>'; return; }
+      el.innerHTML = results.map(c => `
+        <div class="form-row mb8" style="align-items:center">
+          <div class="grow">
+            <span>${escHtml(c.name)}</span>
+            ${c.email ? `<span class="text-xs text-dim ml8">${escHtml(c.email)}</span>` : ''}
+          </div>
+          <select id="role-${c.id}" class="shrink">
+            <option value="0">Coach</option>
+            <option value="1">Admin</option>
+          </select>
+          <button class="btn btn-sm btn-primary" onclick="Coaches.addExisting(${c.id})">Add</button>
+        </div>`).join('');
+    } catch (e) { el.innerHTML = `<p class="text-dim text-sm">${escHtml(e.message)}</p>`; }
+  },
+
+  async addExisting(coachId) {
+    const roleEl = document.getElementById(`role-${coachId}`);
+    const isAdmin = roleEl ? parseInt(roleEl.value) : 0;
+    try {
+      await api('coaches', 'add_to_league', { coach_id: coachId, is_admin: isAdmin });
+      document.getElementById('c-search').value = '';
+      document.getElementById('c-search-results').innerHTML = '';
       this.load();
     } catch (e) { alert(e.message); }
   },

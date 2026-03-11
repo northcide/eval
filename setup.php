@@ -42,11 +42,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->exec("CREATE TABLE IF NOT EXISTS coaches (
                 id         INT AUTO_INCREMENT PRIMARY KEY,
                 name       VARCHAR(100) NOT NULL,
+                email      VARCHAR(255) NULL,
                 password   VARCHAR(255) NOT NULL,
                 is_admin   TINYINT(1) DEFAULT 0,
                 league_id  INT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE KEY unique_name_per_league (name, league_id),
+                UNIQUE KEY unique_email (email),
+                FOREIGN KEY (league_id) REFERENCES leagues(id) ON DELETE CASCADE
+            )");
+
+            $pdo->exec("CREATE TABLE IF NOT EXISTS coach_leagues (
+                coach_id  INT NOT NULL,
+                league_id INT NOT NULL,
+                is_admin  TINYINT(1) NOT NULL DEFAULT 0,
+                PRIMARY KEY (coach_id, league_id),
+                FOREIGN KEY (coach_id)  REFERENCES coaches(id) ON DELETE CASCADE,
                 FOREIGN KEY (league_id) REFERENCES leagues(id) ON DELETE CASCADE
             )");
 

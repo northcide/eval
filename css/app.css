@@ -694,6 +694,9 @@ tr:hover td { background: var(--blue-dim); }
   display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;
 }
 
+.badge-guest { display:inline-block; font-size:10px; font-weight:700; background:var(--orange-dim,rgba(217,119,6,0.15)); color:var(--orange,#d97706); border-radius:4px; padding:1px 5px; margin-left:6px; vertical-align:middle; text-transform:uppercase; letter-spacing:.05em; }
+.ml8 { margin-left:8px; }
+
 /* ── Skills management ───────────────────────────────────────────────────────── */
 .skills-section-title { font-size: 14px; font-weight: 700; margin: 0 0 10px; color: var(--text); }
 .skill-row {
