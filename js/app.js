@@ -462,14 +462,7 @@ const Leagues = {
 
     setMain(`
       <h2 class="section-title">Leagues</h2>
-      <div class="league-search-wrap mb16">
-        <input id="lg-search" class="league-search-input" placeholder="Search leagues…"
-          value="${escHtml(currentSearch)}"
-          oninput="Leagues._page=0;Leagues.render()" />
-      </div>
-      <div class="league-list mb8">${cards}</div>
-      ${pagination}
-      <div class="card mt16" style="padding:20px">
+      <div class="card mb16" style="padding:20px">
         <h3 style="margin:0 0 16px;font-size:15px;font-weight:700">Create New League</h3>
         <div class="field-group">
           <label class="field-label">League Name</label>
@@ -485,9 +478,15 @@ const Leagues = {
         </div>
         <div id="leagues-alert"></div>
         <button class="btn btn-primary" onclick="Leagues.create()">＋ Create League</button>
-      </div>`);
+      </div>
+      <div class="league-search-wrap mb16">
+        <input id="lg-search" class="league-search-input" placeholder="Search leagues…"
+          value="${escHtml(currentSearch)}"
+          oninput="Leagues._page=0;Leagues.render()" />
+      </div>
+      <div class="league-list mb8">${cards}</div>
+      ${pagination}`);
 
-    document.getElementById('lg-search')?.focus();
   },
 
   goPage(p) {
