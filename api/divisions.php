@@ -6,10 +6,10 @@ $action = $_GET['action'] ?? '';
 
 switch ($action) {
     case 'list':
-        $coach = requireLogin();
+        $coach     = requireLogin();
+        $leagueId  = getEffectiveLeagueId($coach);
         $db = getDB();
-        if ($coach['league_id'] === null) {
-            // Superadmin: all divisions with league name
+        if ($leagueId === null) {
             $stmt = $db->query("
                 SELECT d.*, COUNT(p.id) as player_count, l.name as league_name
                 FROM divisions d
@@ -27,37 +27,38 @@ switch ($action) {
                 GROUP BY d.id
                 ORDER BY d.name
             ");
-            $stmt->execute([$coach['league_id']]);
+            $stmt->execute([$leagueId]);
         }
         jsonResponse($stmt->fetchAll());
         break;
 
     case 'create':
-        $coach = requireAdmin();
-        if ($coach['league_id'] === null) jsonResponse(['error' => 'Superadmin cannot create divisions directly'], 400);
+        $coach    = requireAdmin();
+        $leagueId = getEffectiveLeagueId($coach);
+        if ($leagueId === null) jsonResponse(['error' => 'No league selected'], 400);
         $data = getInput();
         $name = trim($data['name'] ?? '');
         if (!$name) jsonResponse(['error' => 'Name required'], 400);
 
         $db = getDB();
         $stmt = $db->prepare("INSERT INTO divisions (name, league_id) VALUES (?, ?)");
-        $stmt->execute([$name, $coach['league_id']]);
+        $stmt->execute([$name, $leagueId]);
         jsonResponse(['id' => $db->lastInsertId(), 'name' => $name, 'player_count' => 0]);
         break;
 
     case 'delete':
-        $coach = requireAdmin();
+        $coach    = requireAdmin();
+        $leagueId = getEffectiveLeagueId($coach);
         $data = getInput();
-        $id = (int)($data['id'] ?? 0);
+        $id   = (int)($data['id'] ?? 0);
         if (!$id) jsonResponse(['error' => 'ID required'], 400);
 
         $db = getDB();
-        // Verify league ownership
-        if ($coach['league_id'] !== null) {
+        if ($leagueId !== null) {
             $stmt = $db->prepare("SELECT league_id FROM divisions WHERE id = ?");
             $stmt->execute([$id]);
             $div = $stmt->fetch();
-            if (!$div || $div['league_id'] != $coach['league_id']) jsonResponse(['error' => 'Access denied'], 403);
+            if (!$div || $div['league_id'] != $leagueId) jsonResponse(['error' => 'Access denied'], 403);
         }
         $db->prepare("DELETE FROM divisions WHERE id = ?")->execute([$id]);
         jsonResponse(['success' => true]);

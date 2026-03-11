@@ -6,9 +6,10 @@ $action = $_GET['action'] ?? '';
 
 switch ($action) {
     case 'list':
-        $coach = requireAdmin();
+        $coach    = requireAdmin();
+        $leagueId = getEffectiveLeagueId($coach);
         $db = getDB();
-        if ($coach['league_id'] === null) {
+        if ($leagueId === null) {
             // Superadmin: list all coaches with league info
             $stmt = $db->query("
                 SELECT c.id, c.name, c.is_admin, c.league_id, c.created_at,
@@ -26,23 +27,21 @@ switch ($action) {
                 WHERE c.league_id = ?
                 ORDER BY c.is_admin DESC, c.name
             ");
-            $stmt->execute([$coach['league_id']]);
+            $stmt->execute([$leagueId]);
         }
         jsonResponse($stmt->fetchAll());
         break;
 
     case 'create':
-        $coach = requireAdmin();
-        $data  = getInput();
-        $name  = trim($data['name'] ?? '');
-        $pass  = $data['password'] ?? '';
+        $coach     = requireAdmin();
+        $leagueId  = getEffectiveLeagueId($coach);
+        $data      = getInput();
+        $name      = trim($data['name'] ?? '');
+        $pass      = $data['password'] ?? '';
         $makeAdmin = !empty($data['is_admin']) ? 1 : 0;
 
         if (!$name || !$pass) jsonResponse(['error' => 'Name and password required'], 400);
-
-        // League admins can only create coaches in their own league
-        $leagueId = $coach['league_id'];
-        if ($leagueId === null) jsonResponse(['error' => 'Superadmin cannot create coaches directly. Create a league first.'], 400);
+        if ($leagueId === null) jsonResponse(['error' => 'No league selected'], 400);
 
         $db   = getDB();
         $hash = password_hash($pass, PASSWORD_DEFAULT);
@@ -58,9 +57,10 @@ switch ($action) {
         break;
 
     case 'delete':
-        $coach = requireAdmin();
-        $data  = getInput();
-        $id    = (int)($data['id'] ?? 0);
+        $coach    = requireAdmin();
+        $leagueId = getEffectiveLeagueId($coach);
+        $data     = getInput();
+        $id       = (int)($data['id'] ?? 0);
 
         $db   = getDB();
         $stmt = $db->prepare("SELECT is_admin, league_id FROM coaches WHERE id = ?");
@@ -71,8 +71,8 @@ switch ($action) {
         // Cannot delete superadmin
         if ($target['is_admin'] && $target['league_id'] === null) jsonResponse(['error' => 'Cannot delete superadmin'], 403);
 
-        // League admin can only delete coaches in own league
-        if ($coach['league_id'] !== null && $target['league_id'] !== $coach['league_id']) {
+        // Scope check: must belong to effective league
+        if ($leagueId !== null && $target['league_id'] !== $leagueId) {
             jsonResponse(['error' => 'Access denied'], 403);
         }
 

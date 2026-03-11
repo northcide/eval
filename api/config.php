@@ -65,6 +65,19 @@ function requireSuperAdmin(): array {
     return $coach;
 }
 
+// When superadmin is managing a league, they pass managing_league_id as a param.
+// Returns the effective league_id to use for scoping queries.
+function getEffectiveLeagueId(array $coach): ?int {
+    if ($coach['league_id'] !== null) return (int)$coach['league_id'];
+    // Superadmin: check for managing_league_id in GET or POST body
+    $raw = $_GET['managing_league_id'] ?? null;
+    if ($raw === null) {
+        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+        $raw  = $body['managing_league_id'] ?? null;
+    }
+    return $raw !== null ? (int)$raw : null;
+}
+
 function jsonResponse(mixed $data, int $status = 200): void {
     http_response_code($status);
     header('Content-Type: application/json');

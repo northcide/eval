@@ -632,6 +632,21 @@ tr:hover td { background: var(--blue-dim); }
   .nav-icon  { font-size: 18px; }
 }
 
+/* ── Manage mode banner ──────────────────────────────────────────────────────── */
+.content-wrap { display: flex; flex-direction: column; flex: 1; min-width: 0; overflow: hidden; }
+.manage-banner {
+  display: flex; align-items: center; justify-content: space-between;
+  background: #eff6ff; border-bottom: 1px solid #bfdbfe;
+  padding: 8px 20px; font-size: 13px; color: #1e40af; font-weight: 500;
+  flex-shrink: 0;
+}
+.manage-exit-btn {
+  background: none; border: 1px solid #93c5fd; color: #1e40af;
+  padding: 4px 12px; border-radius: 8px; cursor: pointer;
+  font-size: 12px; font-weight: 600; font-family: inherit;
+}
+.manage-exit-btn:hover { background: #dbeafe; }
+
 /* ── League cards ────────────────────────────────────────────────────────────── */
 .league-card {
   display: flex; align-items: center; gap: 14px;

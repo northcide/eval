@@ -135,9 +135,15 @@ const Sync = {
 
 // ─── API helper ───────────────────────────────────────────────────────────────
 async function api(file, action, data = null, method = 'GET') {
-  const url = `api/${file}.php?action=${action}`;
+  let url = `api/${file}.php?action=${action}`;
+  if (App.managingLeague) url += `&managing_league_id=${App.managingLeague.id}`;
   const opts = { method, headers: { 'Content-Type': 'application/json' } };
-  if (data) { opts.method = 'POST'; opts.body = JSON.stringify(data); }
+  if (data) {
+    opts.method = 'POST';
+    opts.body = JSON.stringify(App.managingLeague
+      ? { ...data, managing_league_id: App.managingLeague.id }
+      : data);
+  }
   const res = await fetch(url, opts);
   const json = await res.json();
   if (!res.ok) throw new Error(json.error || 'Request failed');
@@ -149,6 +155,7 @@ const App = {
   user: null,
   currentTab: null,
   pollTimer: null,
+  managingLeague: null,
 
   async init() {
     try {
@@ -245,9 +252,15 @@ const App = {
               <span class="nav-icon">${icon}</span><span>${label}</span>
             </button>`).join('')}
         </nav>
-        <main class="content" id="main-content">
-          <div style="color:var(--dim);padding-top:40px;text-align:center"><div class="spinner"></div></div>
-        </main>
+        <div class="content-wrap">
+          <div id="manage-banner" class="manage-banner" hidden>
+            <span>Managing: <strong id="manage-league-name"></strong></span>
+            <button class="manage-exit-btn" onclick="App.exitManageMode()">← Back to Leagues</button>
+          </div>
+          <main class="content" id="main-content">
+            <div style="color:var(--dim);padding-top:40px;text-align:center"><div class="spinner"></div></div>
+          </main>
+        </div>
       </div>`;
 
     this.switchTab(tabs[0][0]);
@@ -259,6 +272,33 @@ const App = {
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
     const views = { divisions: Divisions, players: Players, coaches: Coaches, evaluate: Evaluate, results: Results };
     views[tab]?.load();
+  },
+
+  enterManageMode(league) {
+    this.managingLeague = league;
+    const adminTabs = [['divisions','Divisions','⬡'],['players','Players','👤'],['coaches','Coaches','🛡'],['evaluate','Evaluate','⚾'],['results','Results','📊']];
+    const sidebar = document.getElementById('sidebar');
+    sidebar.className = 'sidebar';
+    sidebar.innerHTML = adminTabs.map(([id,label,icon]) => `
+      <button class="nav-btn" data-tab="${id}" onclick="App.switchTab('${id}')">
+        <span class="nav-icon">${icon}</span><span>${label}</span>
+      </button>`).join('');
+    const banner = document.getElementById('manage-banner');
+    document.getElementById('manage-league-name').textContent = league.name;
+    banner.hidden = false;
+    this.switchTab('divisions');
+  },
+
+  exitManageMode() {
+    this.managingLeague = null;
+    clearInterval(this.pollTimer);
+    const sidebar = document.getElementById('sidebar');
+    sidebar.className = 'sidebar sidebar-few';
+    sidebar.innerHTML = `<button class="nav-btn active" data-tab="leagues" onclick="App.switchTab('leagues')">
+      <span class="nav-icon">🏆</span><span>Leagues</span></button>`;
+    document.getElementById('manage-banner').hidden = true;
+    this.currentTab = 'leagues';
+    Leagues.load();
   }
 };
 
@@ -392,6 +432,7 @@ const Leagues = {
               <div class="league-name">${escHtml(l.name)}</div>
               <div class="text-xs text-dim">${l.coach_count} coaches · ${l.division_count} divisions</div>
             </div>
+            <button class="btn btn-sm btn-primary" onclick="App.enterManageMode({id:${l.id},name:'${escHtml(l.name)}'})">Manage →</button>
             <button class="btn-danger" onclick="Leagues.delete(${l.id}, '${escHtml(l.name)}')">🗑</button>
           </div>`).join('')
       : `<div class="empty-state"><p class="text-dim">No leagues yet. Create one below.</p></div>`;

@@ -7,13 +7,13 @@ $action = $_GET['action'] ?? '';
 switch ($action) {
 
     case 'active':
-        $coach = requireLogin();
-        $db    = getDB();
-        if ($coach['league_id'] !== null) {
+        $coach    = requireLogin();
+        $leagueId = getEffectiveLeagueId($coach);
+        $db       = getDB();
+        if ($leagueId !== null) {
             $stmt = $db->prepare("SELECT s.*, d.name as division_name FROM eval_sessions s JOIN divisions d ON d.id=s.division_id WHERE s.active=1 AND s.league_id=? ORDER BY s.id DESC LIMIT 1");
-            $stmt->execute([$coach['league_id']]);
+            $stmt->execute([$leagueId]);
         } else {
-            // Superadmin: all active sessions
             $stmt = $db->query("SELECT s.*, d.name as division_name FROM eval_sessions s JOIN divisions d ON d.id=s.division_id WHERE s.active=1 ORDER BY s.id DESC LIMIT 1");
         }
         $session = $stmt->fetch();
@@ -21,24 +21,23 @@ switch ($action) {
         break;
 
     case 'start':
-        $coach = requireAdmin();
-        if ($coach['league_id'] === null) jsonResponse(['error' => 'Superadmin cannot start sessions directly'], 400);
+        $coach    = requireAdmin();
+        $leagueId = getEffectiveLeagueId($coach);
+        if ($leagueId === null) jsonResponse(['error' => 'No league selected'], 400);
         $data  = getInput();
         $divId = (int)($data['division_id'] ?? 0);
         if (!$divId) jsonResponse(['error' => 'division_id required'], 400);
 
         $db = getDB();
-        // Verify division belongs to this league
         $stmt = $db->prepare("SELECT league_id FROM divisions WHERE id = ?");
         $stmt->execute([$divId]);
         $div = $stmt->fetch();
-        if (!$div || $div['league_id'] != $coach['league_id']) jsonResponse(['error' => 'Division not in your league'], 403);
+        if (!$div || $div['league_id'] != $leagueId) jsonResponse(['error' => 'Division not in this league'], 403);
 
-        // End any existing active sessions for this league
-        $db->prepare("UPDATE eval_sessions SET active=0, ended_at=NOW() WHERE active=1 AND league_id=?")->execute([$coach['league_id']]);
+        $db->prepare("UPDATE eval_sessions SET active=0, ended_at=NOW() WHERE active=1 AND league_id=?")->execute([$leagueId]);
 
         $stmt = $db->prepare("INSERT INTO eval_sessions (division_id, league_id, current_skill_index, current_player_index, active) VALUES (?,?,0,0,1)");
-        $stmt->execute([$divId, $coach['league_id']]);
+        $stmt->execute([$divId, $leagueId]);
         $id = $db->lastInsertId();
 
         $row = $db->prepare("SELECT s.*, d.name as division_name FROM eval_sessions s JOIN divisions d ON d.id=s.division_id WHERE s.id=?");
@@ -47,10 +46,11 @@ switch ($action) {
         break;
 
     case 'end':
-        $coach = requireAdmin();
+        $coach    = requireAdmin();
+        $leagueId = getEffectiveLeagueId($coach);
         $db = getDB();
-        if ($coach['league_id'] !== null) {
-            $db->prepare("UPDATE eval_sessions SET active=0, ended_at=NOW() WHERE active=1 AND league_id=?")->execute([$coach['league_id']]);
+        if ($leagueId !== null) {
+            $db->prepare("UPDATE eval_sessions SET active=0, ended_at=NOW() WHERE active=1 AND league_id=?")->execute([$leagueId]);
         } else {
             $db->exec("UPDATE eval_sessions SET active=0, ended_at=NOW() WHERE active=1");
         }
@@ -58,8 +58,9 @@ switch ($action) {
         break;
 
     case 'advance':
-        $coach = requireAdmin();
-        $data  = getInput();
+        $coach    = requireAdmin();
+        $leagueId = getEffectiveLeagueId($coach);
+        $data     = getInput();
         $sessionId = (int)($data['session_id'] ?? 0);
 
         $db   = getDB();
@@ -68,8 +69,7 @@ switch ($action) {
         $session = $stmt->fetch();
         if (!$session) jsonResponse(['error' => 'Session not found or inactive'], 404);
 
-        // Verify league ownership
-        if ($coach['league_id'] !== null && $session['league_id'] != $coach['league_id']) {
+        if ($leagueId !== null && $session['league_id'] != $leagueId) {
             jsonResponse(['error' => 'Access denied'], 403);
         }
 

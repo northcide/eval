@@ -72,30 +72,29 @@ switch ($action) {
         break;
 
     case 'results':
-        $coach = requireLogin();
-        $db    = getDB();
+        $coach    = requireLogin();
+        $leagueId = getEffectiveLeagueId($coach);
+        $db       = getDB();
 
-        $isAdmin   = (bool)$coach['is_admin'];
+        $isAdmin    = (bool)$coach['is_admin'];
         $divisionId = isset($_GET['division_id']) ? (int)$_GET['division_id'] : null;
 
-        // Build query
-        $where = ['1=1'];
+        $where  = ['1=1'];
         $params = [];
 
         if (!$isAdmin) {
-            $where[] = 'e.coach_id = ?';
+            $where[]  = 'e.coach_id = ?';
             $params[] = (int)$coach['id'];
         }
 
         if ($divisionId) {
-            $where[] = 'p.division_id = ?';
+            $where[]  = 'p.division_id = ?';
             $params[] = $divisionId;
         }
 
-        // Scope to league for non-superadmins
-        if ($coach['league_id'] !== null) {
-            $where[] = 'd.league_id = ?';
-            $params[] = $coach['league_id'];
+        if ($leagueId !== null) {
+            $where[]  = 'd.league_id = ?';
+            $params[] = $leagueId;
         }
 
         $whereStr = implode(' AND ', $where);
