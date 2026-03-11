@@ -891,27 +891,44 @@ const Coaches = {
 
   render(coaches) {
     const isSuperAdmin = App.user.is_admin && App.user.league_id === null;
-    const cards = coaches.map(c => `
-      <div class="coach-card">
-        <div class="coach-avatar ${c.is_admin ? 'admin' : 'coach'}">${c.is_admin ? '🛡' : '👤'}</div>
-        <div style="flex:1">
-          <div>${escHtml(c.name)}${isSuperAdmin && c.league_name ? ` <span class="text-xs text-dim">(${escHtml(c.league_name)})</span>` : ''}</div>
-          <div class="text-xs text-dim">${c.is_admin ? 'Administrator' : 'Coach'}</div>
-        </div>
-        <button class="btn btn-sm btn-secondary" onclick="Coaches.showResetModal(${c.id})">🔑</button>
-        ${!c.is_admin ? `<button class="btn-danger" onclick="Coaches.delete(${c.id})">🗑</button>` : ''}
-      </div>`).join('');
+    const rows = coaches.length
+      ? coaches.map(c => `
+          <tr>
+            <td>${c.is_admin ? '🛡' : '👤'}</td>
+            <td>${escHtml(c.name)}</td>
+            <td>${c.is_admin ? 'Administrator' : 'Coach'}</td>
+            ${isSuperAdmin ? `<td class="text-dim">${escHtml(c.league_name || '—')}</td>` : ''}
+            <td style="white-space:nowrap">
+              <button class="btn-edit" onclick="Coaches.showResetModal(${c.id})">🔑 Reset</button>
+              ${!c.is_admin ? `<button class="btn-danger" onclick="Coaches.delete(${c.id})">🗑</button>` : ''}
+            </td>
+          </tr>`).join('')
+      : `<tr class="empty-row"><td colspan="${isSuperAdmin ? 5 : 4}">No coaches yet.</td></tr>`;
 
     setMain(`
       <h2 class="section-title">Coaches</h2>
-      <div class="form-row mb16">
-        <div class="grow"><input id="c-name" placeholder="Coach name" /></div>
-        <div class="med"><input id="c-pass" type="password" placeholder="Password" /></div>
-        <button class="btn btn-primary" onclick="Coaches.add()">＋ Add Coach</button>
-        <button class="btn btn-demo" onclick="Demo.seedCoaches()">⚡ Demo Data</button>
+      <div class="card card-pad mb16">
+        <p class="text-muted text-sm mb12" style="text-transform:uppercase;letter-spacing:.1em">Add Coach</p>
+        <div class="form-row">
+          <div class="grow"><input id="c-name" placeholder="Coach name" /></div>
+          <div class="med"><input id="c-pass" type="password" placeholder="Password" /></div>
+          <button class="btn btn-primary" onclick="Coaches.add()">＋ Add Coach</button>
+          <button class="btn btn-demo" onclick="Demo.seedCoaches()">⚡ Demo Data</button>
+        </div>
       </div>
-      <div id="coaches-alert"></div>
-      <div class="card-grid">${cards}</div>
+      <div id="coaches-alert" class="mb8"></div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr>
+            <th></th>
+            <th>Name</th>
+            <th>Role</th>
+            ${isSuperAdmin ? '<th>League</th>' : ''}
+            <th>Actions</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
       <div id="reset-modal" class="modal-overlay" style="display:none" onclick="if(event.target===this)Coaches.closeResetModal()">
         <div class="modal-box">
           <h3 class="modal-title">Reset Password</h3>
