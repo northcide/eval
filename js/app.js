@@ -428,12 +428,14 @@ const Leagues = {
       ? leagues.map(l => `
           <div class="league-card">
             <div class="league-icon">🏆</div>
-            <div style="flex:1">
+            <div class="league-card-info">
               <div class="league-name">${escHtml(l.name)}</div>
               <div class="text-xs text-dim">${l.coach_count} coaches · ${l.division_count} divisions</div>
             </div>
-            <button class="btn btn-sm btn-primary" onclick="App.enterManageMode({id:${l.id},name:'${escHtml(l.name)}'})">Manage →</button>
-            <button class="btn-danger" onclick="Leagues.delete(${l.id}, '${escHtml(l.name)}')">🗑</button>
+            <div class="league-card-actions">
+              <button class="btn btn-sm btn-primary" onclick="App.enterManageMode({id:${l.id},name:'${escHtml(l.name)}'})">Manage →</button>
+              <button class="btn-danger" onclick="Leagues.delete(${l.id}, '${escHtml(l.name)}')">🗑</button>
+            </div>
           </div>`).join('')
       : `<div class="empty-state"><p class="text-dim">No leagues yet. Create one below.</p></div>`;
 
