@@ -649,6 +649,22 @@ tr:hover td { background: var(--blue-dim); }
 
 /* ── League list + cards ─────────────────────────────────────────────────────── */
 .league-list { display: flex; flex-direction: column; gap: 10px; }
+.league-search-wrap { position: relative; }
+.league-search-input {
+  width: 100%; padding: 9px 14px 9px 36px;
+  background: var(--bg2); border: 1px solid var(--border2);
+  border-radius: 10px; font-size: 14px; font-family: inherit; color: var(--text);
+  outline: none; transition: border-color 0.15s;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%236b7a99' stroke-width='2' viewBox='0 0 24 24'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: 11px center;
+}
+.league-search-input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-dim); }
+.league-pagination {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 0 16px; gap: 12px;
+}
+.mt16 { margin-top: 16px; }
+.mb8  { margin-bottom: 8px; }
 .league-card {
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
   background: var(--bg2); border: 1px solid var(--border);

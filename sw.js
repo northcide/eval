@@ -1,4 +1,4 @@
-const CACHE = 'scout-pro-v16';
+const CACHE = 'scout-pro-v17';
 
 // Derive base path from wherever sw.js is located — works on any host/subdirectory
 const BASE = self.location.pathname.replace(/sw\.js$/, '');

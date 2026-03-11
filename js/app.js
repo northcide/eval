@@ -417,15 +417,27 @@ const ChangePassword = {
 
 // ─── LEAGUES (Superadmin only) ────────────────────────────────────────────────
 const Leagues = {
+  _all: [],
+  _page: 0,
+  _perPage: 15,
+
   async load() {
     setMain(`<h2 class="section-title">Leagues</h2><div class="spinner"></div>`);
-    const leagues = await api('leagues', 'list');
-    this.render(leagues);
+    this._all  = await api('leagues', 'list');
+    this._page = 0;
+    this.render();
   },
 
-  render(leagues) {
-    const cards = leagues.length
-      ? leagues.map(l => `
+  render() {
+    const q        = (document.getElementById('lg-search')?.value || '').toLowerCase();
+    const filtered = this._all.filter(l => l.name.toLowerCase().includes(q));
+    const total    = filtered.length;
+    const pages    = Math.ceil(total / this._perPage) || 1;
+    const page     = Math.min(this._page, pages - 1);
+    const slice    = filtered.slice(page * this._perPage, (page + 1) * this._perPage);
+
+    const cards = slice.length
+      ? slice.map(l => `
           <div class="league-card">
             <div class="league-icon">🏆</div>
             <div class="league-card-info">
@@ -437,12 +449,27 @@ const Leagues = {
               <button class="btn-danger" onclick="Leagues.delete(${l.id}, '${escHtml(l.name)}')">🗑</button>
             </div>
           </div>`).join('')
-      : `<div class="empty-state"><p class="text-dim">No leagues yet. Create one below.</p></div>`;
+      : `<div class="empty-state"><p class="text-dim">${this._all.length ? 'No leagues match your search.' : 'No leagues yet. Create one below.'}</p></div>`;
+
+    const pagination = pages > 1 ? `
+      <div class="league-pagination">
+        <button class="btn btn-sm" ${page === 0 ? 'disabled' : ''} onclick="Leagues.goPage(${page - 1})">← Prev</button>
+        <span class="text-sm text-dim">Page ${page + 1} of ${pages} · ${total} leagues</span>
+        <button class="btn btn-sm" ${page >= pages - 1 ? 'disabled' : ''} onclick="Leagues.goPage(${page + 1})">Next →</button>
+      </div>` : total > 0 ? `<p class="text-xs text-dim mb16">${total} league${total !== 1 ? 's' : ''}</p>` : '';
+
+    const currentSearch = document.getElementById('lg-search')?.value || '';
 
     setMain(`
       <h2 class="section-title">Leagues</h2>
-      <div class="league-list mb16">${cards}</div>
-      <div class="card" style="padding:20px">
+      <div class="league-search-wrap mb16">
+        <input id="lg-search" class="league-search-input" placeholder="Search leagues…"
+          value="${escHtml(currentSearch)}"
+          oninput="Leagues._page=0;Leagues.render()" />
+      </div>
+      <div class="league-list mb8">${cards}</div>
+      ${pagination}
+      <div class="card mt16" style="padding:20px">
         <h3 style="margin:0 0 16px;font-size:15px;font-weight:700">Create New League</h3>
         <div class="field-group">
           <label class="field-label">League Name</label>
@@ -459,6 +486,13 @@ const Leagues = {
         <div id="leagues-alert"></div>
         <button class="btn btn-primary" onclick="Leagues.create()">＋ Create League</button>
       </div>`);
+
+    document.getElementById('lg-search')?.focus();
+  },
+
+  goPage(p) {
+    this._page = p;
+    this.render();
   },
 
   async create() {
