@@ -1,5 +1,6 @@
 -- Scout Pro v2 Migration: Add multi-tenant league support
 -- Run this on existing installations to upgrade from v1
+-- MySQL-compatible (no IF NOT EXISTS on ALTER TABLE)
 
 USE scout_pro;
 
@@ -13,20 +14,44 @@ CREATE TABLE IF NOT EXISTS leagues (
 -- Create a default league for existing data
 INSERT IGNORE INTO leagues (id, name) VALUES (1, 'Default League');
 
--- Add league_id to coaches (NULL = superadmin)
-ALTER TABLE coaches ADD COLUMN IF NOT EXISTS league_id INT NULL AFTER is_admin;
-ALTER TABLE coaches ADD CONSTRAINT IF NOT EXISTS fk_coaches_league FOREIGN KEY (league_id) REFERENCES leagues(id) ON DELETE CASCADE;
+-- Add league_id to coaches, divisions, eval_sessions
+-- Using stored procedures to safely add columns only if missing (MySQL-compatible)
+
+DROP PROCEDURE IF EXISTS sp_add_column;
+DELIMITER //
+CREATE PROCEDURE sp_add_column(
+    IN tbl VARCHAR(64),
+    IN col VARCHAR(64),
+    IN col_def TEXT
+)
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME   = tbl
+          AND COLUMN_NAME  = col
+    ) THEN
+        SET @sql = CONCAT('ALTER TABLE `', tbl, '` ADD COLUMN ', col_def);
+        PREPARE stmt FROM @sql;
+        EXECUTE stmt;
+        DEALLOCATE PREPARE stmt;
+    END IF;
+END //
+DELIMITER ;
+
+CALL sp_add_column('coaches',      'league_id', 'league_id INT NULL AFTER is_admin');
+CALL sp_add_column('divisions',    'league_id', 'league_id INT NOT NULL DEFAULT 1 AFTER name');
+CALL sp_add_column('eval_sessions','league_id', 'league_id INT NOT NULL DEFAULT 1 AFTER division_id');
+
+DROP PROCEDURE IF EXISTS sp_add_column;
 
 -- Superadmin stays NULL; assign all other coaches to default league
-UPDATE coaches SET league_id = 1 WHERE is_admin = 0 OR (is_admin = 1 AND name != 'Administrator');
+UPDATE coaches SET league_id = 1 WHERE league_id IS NULL AND (is_admin = 0 OR name != 'Administrator');
 
--- Add league_id to divisions
-ALTER TABLE divisions ADD COLUMN IF NOT EXISTS league_id INT NOT NULL DEFAULT 1 AFTER name;
-ALTER TABLE divisions ADD CONSTRAINT IF NOT EXISTS fk_divisions_league FOREIGN KEY (league_id) REFERENCES leagues(id) ON DELETE CASCADE;
-
--- Add league_id to eval_sessions
-ALTER TABLE eval_sessions ADD COLUMN IF NOT EXISTS league_id INT NOT NULL DEFAULT 1 AFTER division_id;
-ALTER TABLE eval_sessions ADD CONSTRAINT IF NOT EXISTS fk_sessions_league FOREIGN KEY (league_id) REFERENCES leagues(id) ON DELETE CASCADE;
+-- Add foreign key constraints (ignore error if already exists)
+ALTER TABLE coaches       ADD CONSTRAINT fk_coaches_league  FOREIGN KEY (league_id) REFERENCES leagues(id) ON DELETE CASCADE;
+ALTER TABLE divisions     ADD CONSTRAINT fk_divisions_league FOREIGN KEY (league_id) REFERENCES leagues(id) ON DELETE CASCADE;
+ALTER TABLE eval_sessions ADD CONSTRAINT fk_sessions_league  FOREIGN KEY (league_id) REFERENCES leagues(id) ON DELETE CASCADE;
 
 -- Backfill sessions league_id from their division
 UPDATE eval_sessions s JOIN divisions d ON d.id = s.division_id SET s.league_id = d.league_id;
@@ -47,7 +72,7 @@ SELECT l.id, s.name, s.ord
 FROM leagues l
 JOIN (
     SELECT 'Running' as name, 0 as ord UNION ALL
-    SELECT 'Fielding', 1 UNION ALL
-    SELECT 'Pitching', 2 UNION ALL
-    SELECT 'Hitting', 3
+    SELECT 'Fielding', 1         UNION ALL
+    SELECT 'Pitching', 2         UNION ALL
+    SELECT 'Hitting',  3
 ) s ON 1=1;
