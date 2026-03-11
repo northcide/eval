@@ -159,7 +159,7 @@ async function api(file, action, data = null, method = 'GET') {
       ? { ...data, managing_league_id: App.managingLeague.id }
       : data);
   }
-  const res = await fetch(url, opts);
+  const res = await fetch(url, { ...opts, credentials: 'same-origin' });
   const json = await res.json();
   if (!res.ok) throw new Error(json.error || 'Request failed');
   return json;
@@ -926,17 +926,25 @@ const Coaches = {
   render(coaches) {
     const isSuperAdmin = App.user.is_admin && App.user.league_id === null;
     const rows = coaches.length
-      ? coaches.map(c => `
-          <tr>
-            <td>${c.is_admin ? '🛡' : '👤'}</td>
+      ? coaches.map(c => {
+          const isSelf = c.id === App.user.id;
+          const isSuperAdminTarget = c.league_id === null;
+          const canToggleAdmin = !isSelf && !isSuperAdminTarget;
+          const adminToggleBtn = canToggleAdmin
+            ? `<button class="btn-edit" onclick="Coaches.toggleAdmin(${c.id},${c.is_admin ? 0 : 1})">${c.is_admin ? '⬇ Demote' : '⬆ Make Admin'}</button>`
+            : '';
+          return `<tr>
+            <td>${isSuperAdminTarget ? '⭐' : c.is_admin ? '🛡' : '👤'}</td>
             <td>${escHtml(c.name)}</td>
-            <td>${c.is_admin ? 'Administrator' : 'Coach'}</td>
+            <td>${isSuperAdminTarget ? 'Superadmin' : c.is_admin ? 'Administrator' : 'Coach'}</td>
             ${isSuperAdmin ? `<td class="text-dim">${escHtml(c.league_name || '—')}</td>` : ''}
             <td style="white-space:nowrap">
+              ${adminToggleBtn}
               <button class="btn-edit" onclick="Coaches.showResetModal(${c.id})">🔑 Reset</button>
-              ${!c.is_admin ? `<button class="btn-danger" onclick="Coaches.delete(${c.id})">🗑</button>` : ''}
+              ${!c.is_admin && !isSuperAdminTarget ? `<button class="btn-danger" onclick="Coaches.delete(${c.id})">🗑</button>` : ''}
             </td>
-          </tr>`).join('')
+          </tr>`;
+        }).join('')
       : `<tr class="empty-row"><td colspan="${isSuperAdmin ? 5 : 4}">No coaches yet.</td></tr>`;
 
     setMain(`
@@ -1018,6 +1026,16 @@ const Coaches = {
       await api('coaches', 'create', { name, password: pass });
       this.load();
     } catch (e) { showAlert('coaches-alert', e.message); }
+  },
+
+  async toggleAdmin(id, makeAdmin) {
+    const coach = this._all.find(c => c.id === id);
+    const action = makeAdmin ? 'make admin' : 'remove admin for';
+    if (!confirm(`${makeAdmin ? 'Promote' : 'Demote'} ${coach?.name ?? 'this coach'}${makeAdmin ? ' to Administrator' : ' to Coach'}?`)) return;
+    try {
+      await api('coaches', 'set_admin', { id, is_admin: makeAdmin });
+      this.load();
+    } catch (e) { alert(e.message); }
   },
 
   async delete(id) {

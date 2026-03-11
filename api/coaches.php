@@ -133,6 +133,36 @@ switch ($action) {
         jsonResponse(['success' => true]);
         break;
 
+    case 'set_admin':
+        $coach    = requireAdmin();
+        $leagueId = getEffectiveLeagueId($coach);
+        $data     = getInput();
+        $id       = (int)($data['id'] ?? 0);
+        $makeAdmin = !empty($data['is_admin']) ? 1 : 0;
+
+        if (!$id) jsonResponse(['error' => 'ID required'], 400);
+
+        $db   = getDB();
+        $stmt = $db->prepare("SELECT is_admin, league_id FROM coaches WHERE id = ?");
+        $stmt->execute([$id]);
+        $target = $stmt->fetch();
+        if (!$target) jsonResponse(['error' => 'Coach not found'], 404);
+
+        // Cannot change superadmin status
+        if ($target['league_id'] === null) jsonResponse(['error' => 'Cannot change superadmin status'], 403);
+
+        // Cannot change your own admin status
+        if ($id === (int)$coach['id']) jsonResponse(['error' => 'Cannot change your own admin status'], 403);
+
+        // League admin can only manage coaches in their own league
+        if ($leagueId !== null && (int)$target['league_id'] !== $leagueId) {
+            jsonResponse(['error' => 'Access denied'], 403);
+        }
+
+        $db->prepare("UPDATE coaches SET is_admin = ? WHERE id = ?")->execute([$makeAdmin, $id]);
+        jsonResponse(['success' => true]);
+        break;
+
     default:
         jsonResponse(['error' => 'Unknown action'], 400);
 }
