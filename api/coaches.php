@@ -60,6 +60,43 @@ switch ($action) {
         }
         break;
 
+    case 'update':
+        $coach    = requireAdmin();
+        $leagueId = getEffectiveLeagueId($coach);
+        $data     = getInput();
+        $id       = (int)($data['id'] ?? 0);
+        $name     = trim($data['name'] ?? '');
+        $email    = trim($data['email'] ?? '') ?: null;
+
+        if (!$id || !$name) jsonResponse(['error' => 'ID and name required'], 400);
+
+        $db   = getDB();
+        $stmt = $db->prepare("SELECT is_admin, league_id FROM coaches WHERE id = ?");
+        $stmt->execute([$id]);
+        $target = $stmt->fetch();
+        if (!$target) jsonResponse(['error' => 'Coach not found'], 404);
+
+        // Cannot edit superadmin name/email via this route
+        if ($target['league_id'] === null && $target['is_admin']) jsonResponse(['error' => 'Cannot edit superadmin'], 403);
+
+        // League admin scope check
+        if ($leagueId !== null && (int)$target['league_id'] !== $leagueId) {
+            // Allow editing guest coaches too
+            $clStmt = $db->prepare("SELECT 1 FROM coach_leagues WHERE coach_id = ? AND league_id = ?");
+            $clStmt->execute([$id, $leagueId]);
+            if (!$clStmt->fetch()) jsonResponse(['error' => 'Access denied'], 403);
+        }
+
+        try {
+            $db->prepare("UPDATE coaches SET name = ?, email = ? WHERE id = ?")
+               ->execute([$name, $email, $id]);
+            jsonResponse(['success' => true]);
+        } catch (PDOException $e) {
+            if ($e->getCode() === '23000') jsonResponse(['error' => 'A coach with that name or email already exists'], 409);
+            throw $e;
+        }
+        break;
+
     case 'delete':
         $coach    = requireAdmin();
         $leagueId = getEffectiveLeagueId($coach);

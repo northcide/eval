@@ -982,15 +982,28 @@ const Coaches = {
             : '';
           const nameLine = escHtml(c.name) + (isGuest ? ' <span class="badge-guest">Guest</span>' : '');
           const emailLine = c.email ? `<div class="text-xs text-dim">${escHtml(c.email)}</div>` : '';
-          return `<tr>
+          const cols = isSuperAdmin ? 5 : 4;
+          return `<tr id="coach-row-${c.id}">
             <td>${isSuperAdminTarget ? '⭐' : c.is_admin ? '🛡' : '👤'}</td>
             <td>${nameLine}${emailLine}</td>
             <td>${isSuperAdminTarget ? 'Superadmin' : c.is_admin ? 'Administrator' : 'Coach'}</td>
             ${isSuperAdmin ? `<td class="text-dim">${escHtml(c.league_name || '—')}</td>` : ''}
             <td style="white-space:nowrap">
+              ${!isSuperAdminTarget ? `<button class="btn-edit" onclick="Coaches.startEdit(${c.id})">✎ Edit</button>` : ''}
               ${adminToggleBtn}
               <button class="btn-edit" onclick="Coaches.showResetModal(${c.id})">🔑 Reset</button>
               ${deleteBtn}
+            </td>
+          </tr>
+          <tr id="coach-edit-${c.id}" class="hidden">
+            <td></td>
+            <td>
+              <input id="ce-name-${c.id}" value="${escHtml(c.name)}" placeholder="Name" style="width:100%;margin-bottom:4px" />
+              <input id="ce-email-${c.id}" type="email" value="${escHtml(c.email || '')}" placeholder="Email" style="width:100%" />
+            </td>
+            <td colspan="${isSuperAdmin ? 3 : 2}" style="white-space:nowrap;vertical-align:middle">
+              <button class="btn btn-primary" style="padding:4px 10px;font-size:12px" onclick="Coaches.saveEdit(${c.id})">Save</button>
+              <button class="btn btn-secondary" style="padding:4px 10px;font-size:12px" onclick="Coaches.cancelEdit(${c.id})">Cancel</button>
             </td>
           </tr>`;
         }).join('')
@@ -1084,6 +1097,27 @@ const Coaches = {
     if (!name || !pass) return showAlert('coaches-alert', 'Name and password required');
     try {
       await api('coaches', 'create', { name, email, password: pass });
+      this.load();
+    } catch (e) { showAlert('coaches-alert', e.message); }
+  },
+
+  startEdit(id) {
+    document.getElementById(`coach-row-${id}`)?.classList.add('hidden');
+    document.getElementById(`coach-edit-${id}`)?.classList.remove('hidden');
+    document.getElementById(`ce-name-${id}`)?.focus();
+  },
+
+  cancelEdit(id) {
+    document.getElementById(`coach-edit-${id}`)?.classList.add('hidden');
+    document.getElementById(`coach-row-${id}`)?.classList.remove('hidden');
+  },
+
+  async saveEdit(id) {
+    const name  = document.getElementById(`ce-name-${id}`).value.trim();
+    const email = document.getElementById(`ce-email-${id}`).value.trim() || null;
+    if (!name) return showAlert('coaches-alert', 'Name is required');
+    try {
+      await api('coaches', 'update', { id, name, email });
       this.load();
     } catch (e) { showAlert('coaches-alert', e.message); }
   },
