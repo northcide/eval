@@ -441,7 +441,7 @@ const Leagues = {
 
     setMain(`
       <h2 class="section-title">Leagues</h2>
-      <div class="card-grid mb16">${cards}</div>
+      <div class="league-list mb16">${cards}</div>
       <div class="card" style="padding:20px">
         <h3 style="margin:0 0 16px;font-size:15px;font-weight:700">Create New League</h3>
         <div class="field-group">

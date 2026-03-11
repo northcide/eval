@@ -647,7 +647,8 @@ tr:hover td { background: var(--blue-dim); }
 }
 .manage-exit-btn:hover { background: #dbeafe; }
 
-/* ── League cards ────────────────────────────────────────────────────────────── */
+/* ── League list + cards ─────────────────────────────────────────────────────── */
+.league-list { display: flex; flex-direction: column; gap: 10px; }
 .league-card {
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
   background: var(--bg2); border: 1px solid var(--border);
