@@ -31,64 +31,82 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->exec("CREATE DATABASE IF NOT EXISTS `{$name}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
             $pdo->exec("USE `{$name}`");
 
-            // Create tables
-            $pdo->exec("CREATE TABLE IF NOT EXISTS divisions (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(100) NOT NULL,
+            // Leagues
+            $pdo->exec("CREATE TABLE IF NOT EXISTS leagues (
+                id         INT AUTO_INCREMENT PRIMARY KEY,
+                name       VARCHAR(100) NOT NULL UNIQUE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )");
 
+            // Coaches (league_id NULL = superadmin)
             $pdo->exec("CREATE TABLE IF NOT EXISTS coaches (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(100) NOT NULL,
-                password VARCHAR(255) NOT NULL,
-                is_admin TINYINT(1) DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                id         INT AUTO_INCREMENT PRIMARY KEY,
+                name       VARCHAR(100) NOT NULL,
+                password   VARCHAR(255) NOT NULL,
+                is_admin   TINYINT(1) DEFAULT 0,
+                league_id  INT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY unique_name_per_league (name, league_id),
+                FOREIGN KEY (league_id) REFERENCES leagues(id) ON DELETE CASCADE
             )");
 
-            $pdo->exec("CREATE TABLE IF NOT EXISTS players (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(100) NOT NULL,
-                age INT,
-                is_pitcher TINYINT(1) DEFAULT 0,
-                is_catcher TINYINT(1) DEFAULT 0,
-                division_id INT,
+            // Divisions
+            $pdo->exec("CREATE TABLE IF NOT EXISTS divisions (
+                id        INT AUTO_INCREMENT PRIMARY KEY,
+                name      VARCHAR(100) NOT NULL,
+                league_id INT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (league_id) REFERENCES leagues(id) ON DELETE CASCADE
+            )");
+
+            // Players
+            $pdo->exec("CREATE TABLE IF NOT EXISTS players (
+                id          INT AUTO_INCREMENT PRIMARY KEY,
+                name        VARCHAR(100) NOT NULL,
+                age         INT,
+                is_pitcher  TINYINT(1) DEFAULT 0,
+                is_catcher  TINYINT(1) DEFAULT 0,
+                division_id INT,
+                created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (division_id) REFERENCES divisions(id) ON DELETE SET NULL
             )");
 
+            // Evaluation Sessions
             $pdo->exec("CREATE TABLE IF NOT EXISTS eval_sessions (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                division_id INT NOT NULL,
-                current_skill_index INT DEFAULT 0,
+                id                   INT AUTO_INCREMENT PRIMARY KEY,
+                division_id          INT NOT NULL,
+                league_id            INT NOT NULL,
+                current_skill_index  INT DEFAULT 0,
                 current_player_index INT DEFAULT 0,
-                active TINYINT(1) DEFAULT 1,
-                started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                ended_at TIMESTAMP NULL,
-                FOREIGN KEY (division_id) REFERENCES divisions(id)
+                active               TINYINT(1) DEFAULT 1,
+                started_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                ended_at             TIMESTAMP NULL,
+                FOREIGN KEY (division_id) REFERENCES divisions(id),
+                FOREIGN KEY (league_id) REFERENCES leagues(id) ON DELETE CASCADE
             )");
 
+            // Evaluations
             $pdo->exec("CREATE TABLE IF NOT EXISTS evaluations (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                session_id INT NOT NULL,
-                player_id INT NOT NULL,
-                coach_id INT NOT NULL,
+                id          INT AUTO_INCREMENT PRIMARY KEY,
+                session_id  INT NOT NULL,
+                player_id   INT NOT NULL,
+                coach_id    INT NOT NULL,
                 skill_index INT NOT NULL,
-                skill_name VARCHAR(50) NOT NULL,
-                score INT NOT NULL CHECK (score >= 1 AND score <= 10),
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                skill_name  VARCHAR(50) NOT NULL,
+                score       INT NOT NULL CHECK (score >= 1 AND score <= 10),
+                created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE KEY unique_eval (session_id, player_id, coach_id, skill_index),
                 FOREIGN KEY (session_id) REFERENCES eval_sessions(id),
                 FOREIGN KEY (player_id) REFERENCES players(id),
                 FOREIGN KEY (coach_id) REFERENCES coaches(id)
             )");
 
-            // Insert admin account
+            // Insert superadmin account (league_id = NULL)
             $hash = password_hash($apass, PASSWORD_DEFAULT);
-            $stmt = $pdo->prepare("INSERT IGNORE INTO coaches (name, password, is_admin) VALUES ('Administrator', ?, 1)");
+            $stmt = $pdo->prepare("INSERT IGNORE INTO coaches (name, password, is_admin, league_id) VALUES ('Administrator', ?, 1, NULL)");
             $stmt->execute([$hash]);
 
-            // Write config.php — build with concatenation to avoid heredoc indentation issues
+            // Write config.php
             $q = "'";
             $configPath = __DIR__ . '/api/config.php';
             $config = "<?php\n"
@@ -139,6 +157,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 . "    if (empty(\$coach['is_admin'])) {\n"
                 . '        http_response_code(403);' . "\n"
                 . "        die(json_encode(['error' => 'Admin access required']));\n"
+                . '    }' . "\n"
+                . '    return $coach;' . "\n"
+                . "}\n\n"
+                . 'function requireSuperAdmin(): array {' . "\n"
+                . '    $coach = requireLogin();' . "\n"
+                . "    if (empty(\$coach['is_admin']) || \$coach['league_id'] !== null) {\n"
+                . '        http_response_code(403);' . "\n"
+                . "        die(json_encode(['error' => 'Superadmin access required']));\n"
                 . '    }' . "\n"
                 . '    return $coach;' . "\n"
                 . "}\n\n"
