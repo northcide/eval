@@ -80,6 +80,36 @@ switch ($action) {
         jsonResponse(['success' => true]);
         break;
 
+    case 'reset_password':
+        $coach    = requireAdmin();
+        $leagueId = getEffectiveLeagueId($coach);
+        $data     = getInput();
+        $id       = (int)($data['id'] ?? 0);
+        $newPass  = $data['new_password'] ?? '';
+
+        if (!$id || !$newPass)    jsonResponse(['error' => 'ID and new password required'], 400);
+        if (strlen($newPass) < 6) jsonResponse(['error' => 'Password must be at least 6 characters'], 400);
+
+        $db   = getDB();
+        $stmt = $db->prepare("SELECT is_admin, league_id FROM coaches WHERE id = ?");
+        $stmt->execute([$id]);
+        $target = $stmt->fetch();
+        if (!$target) jsonResponse(['error' => 'Coach not found'], 404);
+
+        // Only superadmin can reset another superadmin account
+        if ($target['is_admin'] && $target['league_id'] === null && $coach['league_id'] !== null) {
+            jsonResponse(['error' => 'Cannot reset superadmin password'], 403);
+        }
+        // League admin can only reset within their own league
+        if ($leagueId !== null && (int)$target['league_id'] !== $leagueId) {
+            jsonResponse(['error' => 'Access denied'], 403);
+        }
+
+        $hash = password_hash($newPass, PASSWORD_DEFAULT);
+        $db->prepare("UPDATE coaches SET password = ? WHERE id = ?")->execute([$hash, $id]);
+        jsonResponse(['success' => true]);
+        break;
+
     case 'change_password':
         requireLogin();
         $data    = getInput();

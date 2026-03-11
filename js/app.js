@@ -885,6 +885,7 @@ const Coaches = {
   async load() {
     setMain(`<h2 class="section-title">Coaches</h2><div class="spinner"></div>`);
     const coaches = await api('coaches', 'list');
+    this._all = coaches;
     this.render(coaches);
   },
 
@@ -897,6 +898,7 @@ const Coaches = {
           <div>${escHtml(c.name)}${isSuperAdmin && c.league_name ? ` <span class="text-xs text-dim">(${escHtml(c.league_name)})</span>` : ''}</div>
           <div class="text-xs text-dim">${c.is_admin ? 'Administrator' : 'Coach'}</div>
         </div>
+        <button class="btn btn-sm btn-secondary" onclick="Coaches.showResetModal(${c.id})">🔑</button>
         ${!c.is_admin ? `<button class="btn-danger" onclick="Coaches.delete(${c.id})">🗑</button>` : ''}
       </div>`).join('');
 
@@ -909,7 +911,52 @@ const Coaches = {
         <button class="btn btn-demo" onclick="Demo.seedCoaches()">⚡ Demo Data</button>
       </div>
       <div id="coaches-alert"></div>
-      <div class="card-grid">${cards}</div>`);
+      <div class="card-grid">${cards}</div>
+      <div id="reset-modal" class="modal-overlay" style="display:none" onclick="if(event.target===this)Coaches.closeResetModal()">
+        <div class="modal-box">
+          <h3 class="modal-title">Reset Password</h3>
+          <p id="reset-modal-name" class="text-sm text-dim mb12"></p>
+          <input id="reset-new-pass" type="password" placeholder="New password (min 6 chars)" class="mb8" />
+          <input id="reset-confirm-pass" type="password" placeholder="Confirm new password" class="mb12" />
+          <div id="reset-modal-alert" class="mb8"></div>
+          <div class="form-row">
+            <button class="btn btn-primary grow" onclick="Coaches.confirmReset()">Reset Password</button>
+            <button class="btn btn-secondary" onclick="Coaches.closeResetModal()">Cancel</button>
+          </div>
+        </div>
+      </div>`);
+  },
+
+  _resetId: null,
+  _all: [],
+
+  showResetModal(id) {
+    const coach = this._all.find(c => c.id === id);
+    this._resetId = id;
+    document.getElementById('reset-modal-name').textContent = coach ? coach.name : '';
+    document.getElementById('reset-new-pass').value = '';
+    document.getElementById('reset-confirm-pass').value = '';
+    document.getElementById('reset-modal-alert').innerHTML = '';
+    document.getElementById('reset-modal').style.display = 'flex';
+    document.getElementById('reset-new-pass').focus();
+  },
+
+  closeResetModal() {
+    document.getElementById('reset-modal').style.display = 'none';
+    this._resetId = null;
+  },
+
+  async confirmReset() {
+    const newPass     = document.getElementById('reset-new-pass').value;
+    const confirmPass = document.getElementById('reset-confirm-pass').value;
+    const alertEl     = document.getElementById('reset-modal-alert');
+    if (newPass.length < 6)        return showAlert('reset-modal-alert', 'Password must be at least 6 characters');
+    if (newPass !== confirmPass)   return showAlert('reset-modal-alert', 'Passwords do not match');
+    try {
+      await api('coaches', 'reset_password', { id: this._resetId, new_password: newPass });
+      this.closeResetModal();
+      showAlert('coaches-alert', 'Password reset successfully', 'success');
+    } catch (e) { showAlert('reset-modal-alert', e.message); }
   },
 
   async add() {
