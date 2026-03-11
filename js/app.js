@@ -574,21 +574,21 @@ const Skills = {
     setMain(`
       <h2 class="section-title">Skills</h2>
       <div class="card card-pad mb16">
-        <p class="text-sm text-dim mb12">Skills are evaluated in the order listed. Drag the arrows to reorder.</p>
-        <div id="skill-list">${skillRows}</div>
-      </div>
-      <div class="card card-pad mb16">
         <h3 class="skills-section-title">Quick Add</h3>
         <p class="text-xs text-dim mb12">Click to add a standard skill:</p>
         <div class="canned-skills-wrap">${cannedBtns}</div>
       </div>
-      <div class="card card-pad">
+      <div class="card card-pad mb16">
         <h3 class="skills-section-title">Custom Skill</h3>
         <div class="form-row">
           <div class="grow"><input id="skill-name" placeholder="Skill name (e.g. Arm Strength)" maxlength="50" /></div>
           <button class="btn btn-primary" onclick="Skills.addCustom()">＋ Add</button>
         </div>
         <div id="skills-alert" class="mt8"></div>
+      </div>
+      <div class="card card-pad">
+        <p class="text-sm text-dim mb12">Skills are evaluated in the order listed. Drag the arrows to reorder.</p>
+        <div id="skill-list">${skillRows}</div>
       </div>`);
   },
 
