@@ -2,8 +2,9 @@
 require_once __DIR__ . '/config.php';
 header('Content-Type: application/json');
 $demoCoach = requireAdmin();
-if ($demoCoach['league_id'] === null) {
-    jsonResponse(['error' => 'Superadmin cannot seed demo data directly. Log in as a league admin.'], 403);
+$leagueId  = getEffectiveLeagueId($demoCoach);
+if ($leagueId === null) {
+    jsonResponse(['error' => 'No league selected. Use Manage on a league first.'], 403);
 }
 
 $action = $_GET['action'] ?? '';
@@ -50,9 +51,9 @@ switch ($action) {
         $created = 0;
         foreach ($demo as $name) {
             $exists = $db->prepare("SELECT id FROM divisions WHERE name = ? AND league_id = ?");
-            $exists->execute([$name, $demoCoach['league_id']]);
+            $exists->execute([$name, $leagueId]);
             if (!$exists->fetch()) {
-                $db->prepare("INSERT INTO divisions (name, league_id) VALUES (?, ?)")->execute([$name, $demoCoach['league_id']]);
+                $db->prepare("INSERT INTO divisions (name, league_id) VALUES (?, ?)")->execute([$name, $leagueId]);
                 $created++;
             }
         }
@@ -64,7 +65,7 @@ switch ($action) {
     // ── Seed players — 100 per division ────────────────────────────────────
     case 'players':
         // Delete all existing players (and their evaluations) for this league
-        $leagueId = $demoCoach['league_id'];
+
         $db->prepare("DELETE FROM evaluations WHERE player_id IN (SELECT p.id FROM players p JOIN divisions d ON d.id=p.division_id WHERE d.league_id=?)")->execute([$leagueId]);
         $db->prepare("DELETE FROM players WHERE division_id IN (SELECT id FROM divisions WHERE league_id=?)")->execute([$leagueId]);
 
@@ -103,7 +104,7 @@ switch ($action) {
 
     // ── Seed coaches — 10 demo coaches ─────────────────────────────────────
     case 'coaches':
-        $leagueId = $demoCoach['league_id'];
+
         // Delete all non-admin coaches in this league
         $db->prepare("DELETE FROM evaluations WHERE coach_id IN (SELECT id FROM coaches WHERE is_admin = 0 AND league_id = ?)")->execute([$leagueId]);
         $db->prepare("DELETE FROM coaches WHERE is_admin = 0 AND league_id = ?")->execute([$leagueId]);
