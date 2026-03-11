@@ -238,7 +238,7 @@ const App = {
     if (isSuperAdmin) {
       tabs = [['leagues','Leagues','🏆']];
     } else if (isLeagueAdmin) {
-      tabs = [['divisions','Divisions','⬡'],['players','Players','👤'],['coaches','Coaches','🛡'],['skills','Skills','⚙'],['evaluate','Evaluate','⚾'],['results','Results','📊']];
+      tabs = [['leagues','My League','🏆']];
     } else {
       tabs = [['evaluate','Evaluate','⚾'],['results','My Results','📊']];
     }
@@ -285,12 +285,13 @@ const App = {
     clearInterval(this.pollTimer);
     this.currentTab = tab;
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-    const views = { divisions: Divisions, players: Players, coaches: Coaches, skills: Skills, evaluate: Evaluate, results: Results };
+    const views = { leagues: Leagues, divisions: Divisions, players: Players, coaches: Coaches, skills: Skills, evaluate: Evaluate, results: Results };
     views[tab]?.load();
   },
 
   enterManageMode(league) {
     this.managingLeague = league;
+    const isLeagueAdmin = this.user.is_admin && this.user.league_id !== null;
     const adminTabs = [['divisions','Divisions','⬡'],['players','Players','👤'],['coaches','Coaches','🛡'],['skills','Skills','⚙'],['evaluate','Evaluate','⚾'],['results','Results','📊']];
     const sidebar = document.getElementById('sidebar');
     sidebar.className = 'sidebar';
@@ -300,6 +301,7 @@ const App = {
       </button>`).join('');
     const banner = document.getElementById('manage-banner');
     document.getElementById('manage-league-name').textContent = league.name;
+    document.querySelector('.manage-exit-btn').textContent = isLeagueAdmin ? '← Back to My League' : '← Back to Leagues';
     banner.hidden = false;
     this.switchTab('divisions');
   },
@@ -307,10 +309,12 @@ const App = {
   exitManageMode() {
     this.managingLeague = null;
     clearInterval(this.pollTimer);
+    const isLeagueAdmin = this.user.is_admin && this.user.league_id !== null;
+    const label = isLeagueAdmin ? 'My League' : 'Leagues';
     const sidebar = document.getElementById('sidebar');
     sidebar.className = 'sidebar sidebar-few';
     sidebar.innerHTML = `<button class="nav-btn active" data-tab="leagues" onclick="App.switchTab('leagues')">
-      <span class="nav-icon">🏆</span><span>Leagues</span></button>`;
+      <span class="nav-icon">🏆</span><span>${label}</span></button>`;
     document.getElementById('manage-banner').hidden = true;
     this.currentTab = 'leagues';
     Leagues.load();
@@ -444,6 +448,31 @@ const Leagues = {
   },
 
   render() {
+    const isSuperAdmin = App.user.is_admin && App.user.league_id === null;
+
+    if (!isSuperAdmin) {
+      // League admin: simple view — just their league(s) with a Manage button
+      const cards = this._all.length
+        ? this._all.map(l => `
+            <div class="league-card">
+              <div class="league-icon">🏆</div>
+              <div class="league-card-info">
+                <div class="league-name">${escHtml(l.name)}</div>
+                <div class="text-xs text-dim">${l.coach_count} coaches · ${l.division_count} divisions</div>
+              </div>
+              <div class="league-card-actions">
+                <button class="btn btn-sm btn-primary" onclick="Leagues.manage(${l.id})">Manage →</button>
+              </div>
+            </div>`).join('')
+        : `<div class="empty-state"><p class="text-dim">No league found.</p></div>`;
+
+      setMain(`
+        <h2 class="section-title">My League</h2>
+        <div class="league-list">${cards}</div>`);
+      return;
+    }
+
+    // Superadmin: full view with create form, search, pagination, delete
     const q        = (document.getElementById('lg-search')?.value || '').toLowerCase();
     const filtered = this._all.filter(l => l.name.toLowerCase().includes(q));
     const total    = filtered.length;

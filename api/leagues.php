@@ -6,18 +6,34 @@ $action = $_GET['action'] ?? '';
 
 switch ($action) {
     case 'list':
-        requireSuperAdmin();
-        $db = getDB();
-        $stmt = $db->query("
-            SELECT l.*,
-                COUNT(DISTINCT c.id) as coach_count,
-                COUNT(DISTINCT d.id) as division_count
-            FROM leagues l
-            LEFT JOIN coaches c ON c.league_id = l.id
-            LEFT JOIN divisions d ON d.league_id = l.id
-            GROUP BY l.id
-            ORDER BY l.name
-        ");
+        $coach = requireAdmin();
+        $db    = getDB();
+        if ($coach['league_id'] === null) {
+            // Superadmin: all leagues
+            $stmt = $db->query("
+                SELECT l.*,
+                    COUNT(DISTINCT c.id) as coach_count,
+                    COUNT(DISTINCT d.id) as division_count
+                FROM leagues l
+                LEFT JOIN coaches c ON c.league_id = l.id
+                LEFT JOIN divisions d ON d.league_id = l.id
+                GROUP BY l.id
+                ORDER BY l.name
+            ");
+        } else {
+            // League admin: only their own league
+            $stmt = $db->prepare("
+                SELECT l.*,
+                    COUNT(DISTINCT c.id) as coach_count,
+                    COUNT(DISTINCT d.id) as division_count
+                FROM leagues l
+                LEFT JOIN coaches c ON c.league_id = l.id
+                LEFT JOIN divisions d ON d.league_id = l.id
+                WHERE l.id = ?
+                GROUP BY l.id
+            ");
+            $stmt->execute([(int)$coach['league_id']]);
+        }
         jsonResponse($stmt->fetchAll());
         break;
 
