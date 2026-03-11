@@ -30,3 +30,24 @@ ALTER TABLE eval_sessions ADD CONSTRAINT IF NOT EXISTS fk_sessions_league FOREIG
 
 -- Backfill sessions league_id from their division
 UPDATE eval_sessions s JOIN divisions d ON d.id = s.division_id SET s.league_id = d.league_id;
+
+-- Add skills table
+CREATE TABLE IF NOT EXISTS skills (
+    id         INT AUTO_INCREMENT PRIMARY KEY,
+    league_id  INT NOT NULL,
+    name       VARCHAR(100) NOT NULL,
+    sort_order INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (league_id) REFERENCES leagues(id) ON DELETE CASCADE
+);
+
+-- Insert default skills for all existing leagues
+INSERT IGNORE INTO skills (league_id, name, sort_order)
+SELECT l.id, s.name, s.ord
+FROM leagues l
+JOIN (
+    SELECT 'Running' as name, 0 as ord UNION ALL
+    SELECT 'Fielding', 1 UNION ALL
+    SELECT 'Pitching', 2 UNION ALL
+    SELECT 'Hitting', 3
+) s ON 1=1;

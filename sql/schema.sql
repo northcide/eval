@@ -32,6 +32,16 @@ CREATE TABLE IF NOT EXISTS divisions (
     FOREIGN KEY (league_id) REFERENCES leagues(id) ON DELETE CASCADE
 );
 
+-- Skills (per league, configurable)
+CREATE TABLE IF NOT EXISTS skills (
+    id         INT AUTO_INCREMENT PRIMARY KEY,
+    league_id  INT NOT NULL,
+    name       VARCHAR(100) NOT NULL,
+    sort_order INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (league_id) REFERENCES leagues(id) ON DELETE CASCADE
+);
+
 -- Players
 CREATE TABLE IF NOT EXISTS players (
     id          INT AUTO_INCREMENT PRIMARY KEY,

@@ -4,8 +4,6 @@ header('Content-Type: application/json');
 
 $action = $_GET['action'] ?? '';
 
-const SKILLS = ['Running', 'Fielding', 'Pitching', 'Hitting'];
-
 switch ($action) {
 
     case 'submit':
@@ -21,9 +19,16 @@ switch ($action) {
             jsonResponse(['error' => 'Invalid data'], 400);
         }
 
-        $skillName = SKILLS[$skillIndex] ?? 'Unknown';
-
         $db = getDB();
+        // Look up skill name from the league's skills table
+        $skillStmt = $db->prepare("
+            SELECT sk.name FROM skills sk
+            JOIN eval_sessions s ON s.league_id = sk.league_id
+            WHERE s.id = ? ORDER BY sk.sort_order, sk.id
+        ");
+        $skillStmt->execute([$sessionId]);
+        $skillNames = array_column($skillStmt->fetchAll(), 'name');
+        $skillName  = $skillNames[$skillIndex] ?? 'Unknown';
         // INSERT OR UPDATE (on duplicate key = already scored)
         $stmt = $db->prepare("
             INSERT INTO evaluations (session_id, player_id, coach_id, skill_index, skill_name, score)

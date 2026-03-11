@@ -43,6 +43,13 @@ switch ($action) {
             $db->prepare("INSERT INTO coaches (name, password, is_admin, league_id) VALUES (?, ?, 1, ?)")
                ->execute([$adminName, $hash, $leagueId]);
 
+            // Insert default skills
+            $defaultSkills = ['Running', 'Fielding', 'Pitching', 'Hitting'];
+            $skillStmt = $db->prepare("INSERT INTO skills (league_id, name, sort_order) VALUES (?, ?, ?)");
+            foreach ($defaultSkills as $i => $skill) {
+                $skillStmt->execute([$leagueId, $skill, $i]);
+            }
+
             $db->commit();
             jsonResponse(['id' => $leagueId, 'name' => $leagueName, 'admin_name' => $adminName]);
         } catch (PDOException $e) {

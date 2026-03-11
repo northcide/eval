@@ -1,7 +1,22 @@
 /* Scout Pro — Main Application JS */
 'use strict';
 
-const SKILLS = ['Running', 'Fielding', 'Pitching', 'Hitting'];
+// Skills are now per-league and fetched from the API
+// LeagueSkills caches them to avoid repeated fetches within a session
+const LeagueSkills = {
+  _cache: null,
+  async get() {
+    if (this._cache) return this._cache;
+    try {
+      const data = await api('skills', 'list');
+      this._cache = data.map(s => s.name);
+    } catch {
+      this._cache = ['Running', 'Fielding', 'Pitching', 'Hitting'];
+    }
+    return this._cache;
+  },
+  invalidate() { this._cache = null; }
+};
 
 // ─── Offline IndexedDB ────────────────────────────────────────────────────────
 const OfflineDB = {
@@ -223,7 +238,7 @@ const App = {
     if (isSuperAdmin) {
       tabs = [['leagues','Leagues','🏆']];
     } else if (isLeagueAdmin) {
-      tabs = [['divisions','Divisions','⬡'],['players','Players','👤'],['coaches','Coaches','🛡'],['evaluate','Evaluate','⚾'],['results','Results','📊']];
+      tabs = [['divisions','Divisions','⬡'],['players','Players','👤'],['coaches','Coaches','🛡'],['skills','Skills','⚙'],['evaluate','Evaluate','⚾'],['results','Results','📊']];
     } else {
       tabs = [['evaluate','Evaluate','⚾'],['results','My Results','📊']];
     }
@@ -270,13 +285,13 @@ const App = {
     clearInterval(this.pollTimer);
     this.currentTab = tab;
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-    const views = { divisions: Divisions, players: Players, coaches: Coaches, evaluate: Evaluate, results: Results };
+    const views = { divisions: Divisions, players: Players, coaches: Coaches, skills: Skills, evaluate: Evaluate, results: Results };
     views[tab]?.load();
   },
 
   enterManageMode(league) {
     this.managingLeague = league;
-    const adminTabs = [['divisions','Divisions','⬡'],['players','Players','👤'],['coaches','Coaches','🛡'],['evaluate','Evaluate','⚾'],['results','Results','📊']];
+    const adminTabs = [['divisions','Divisions','⬡'],['players','Players','👤'],['coaches','Coaches','🛡'],['skills','Skills','⚙'],['evaluate','Evaluate','⚾'],['results','Results','📊']];
     const sidebar = document.getElementById('sidebar');
     sidebar.className = 'sidebar';
     sidebar.innerHTML = adminTabs.map(([id,label,icon]) => `
@@ -516,6 +531,113 @@ const Leagues = {
     if (!confirm(`Delete league "${l.name}"?\n\nThis will permanently delete all coaches, divisions, players, and evaluation data for this league.`)) return;
     try { await api('leagues', 'delete', { id }); this.load(); }
     catch (e) { alert(e.message); }
+  }
+};
+
+// ─── SKILLS (League admin + superadmin manage mode) ───────────────────────────
+const CANNED_SKILLS = ['Running', 'Fielding', 'Pitching', 'Hitting', 'Batting', 'Throwing', 'Speed', 'Catching', 'Defense', 'Offense'];
+
+const Skills = {
+  _skills: [],
+
+  async load() {
+    setMain(`<h2 class="section-title">Skills</h2><div class="spinner"></div>`);
+    try {
+      this._skills = await api('skills', 'list');
+      LeagueSkills.invalidate();
+      this.render();
+    } catch (e) {
+      setMain(`<h2 class="section-title">Skills</h2><div class="alert alert-error">${escHtml(e.message)}</div>`);
+    }
+  },
+
+  render() {
+    const existingNames = new Set(this._skills.map(s => s.name.toLowerCase()));
+    const cannedBtns = CANNED_SKILLS.map(name => {
+      const has = existingNames.has(name.toLowerCase());
+      return `<button class="canned-skill-btn ${has ? 'canned-added' : ''}" ${has ? 'disabled' : `onclick="Skills.addCanned('${name}')"`}>${escHtml(name)}${has ? ' ✓' : ' +'}</button>`;
+    }).join('');
+
+    const skillRows = this._skills.length
+      ? this._skills.map((s, i) => `
+          <div class="skill-row" data-id="${s.id}">
+            <div class="skill-drag-handle">
+              <button class="skill-order-btn" ${i === 0 ? 'disabled' : ''} onclick="Skills.moveUp(${s.id})">↑</button>
+              <button class="skill-order-btn" ${i === this._skills.length - 1 ? 'disabled' : ''} onclick="Skills.moveDown(${s.id})">↓</button>
+            </div>
+            <span class="skill-order-num">${i + 1}</span>
+            <span class="skill-row-name">${escHtml(s.name)}</span>
+            <button class="btn-danger" onclick="Skills.delete(${s.id})">🗑</button>
+          </div>`).join('')
+      : `<p class="text-dim">No skills yet. Add some below.</p>`;
+
+    setMain(`
+      <h2 class="section-title">Skills</h2>
+      <div class="card card-pad mb16">
+        <p class="text-sm text-dim mb12">Skills are evaluated in the order listed. Drag the arrows to reorder.</p>
+        <div id="skill-list">${skillRows}</div>
+      </div>
+      <div class="card card-pad mb16">
+        <h3 class="skills-section-title">Quick Add</h3>
+        <p class="text-xs text-dim mb12">Click to add a standard skill:</p>
+        <div class="canned-skills-wrap">${cannedBtns}</div>
+      </div>
+      <div class="card card-pad">
+        <h3 class="skills-section-title">Custom Skill</h3>
+        <div class="form-row">
+          <div class="grow"><input id="skill-name" placeholder="Skill name (e.g. Arm Strength)" maxlength="50" /></div>
+          <button class="btn btn-primary" onclick="Skills.addCustom()">＋ Add</button>
+        </div>
+        <div id="skills-alert" class="mt8"></div>
+      </div>`);
+  },
+
+  async addCanned(name) {
+    try {
+      await api('skills', 'create', { name });
+      this.load();
+    } catch (e) { alert(e.message); }
+  },
+
+  async addCustom() {
+    const name = document.getElementById('skill-name').value.trim();
+    if (!name) return showAlert('skills-alert', 'Please enter a skill name');
+    try {
+      await api('skills', 'create', { name });
+      this.load();
+    } catch (e) { showAlert('skills-alert', e.message); }
+  },
+
+  async moveUp(id) {
+    const idx = this._skills.findIndex(s => s.id === id);
+    if (idx <= 0) return;
+    [this._skills[idx - 1], this._skills[idx]] = [this._skills[idx], this._skills[idx - 1]];
+    await this._saveOrder();
+  },
+
+  async moveDown(id) {
+    const idx = this._skills.findIndex(s => s.id === id);
+    if (idx < 0 || idx >= this._skills.length - 1) return;
+    [this._skills[idx], this._skills[idx + 1]] = [this._skills[idx + 1], this._skills[idx]];
+    await this._saveOrder();
+  },
+
+  async _saveOrder() {
+    try {
+      await api('skills', 'reorder', { ids: this._skills.map(s => s.id) });
+      LeagueSkills.invalidate();
+      this.render();
+    } catch (e) { alert(e.message); }
+  },
+
+  async delete(id) {
+    const skill = this._skills.find(s => s.id === id);
+    const name = skill ? skill.name : 'this skill';
+    if (!confirm(`Remove skill "${name}"?\n\nThis won't delete existing evaluation scores for this skill.`)) return;
+    try {
+      await api('skills', 'delete', { id });
+      this.load();
+    } catch (e) { alert(e.message); }
   }
 };
 
@@ -812,6 +934,7 @@ const Evaluate = {
   session: null,
   players: [],
   progress: [],
+  skills: [],
 
   async load() {
     setMain(`<h2 class="section-title">Evaluation Session</h2><div class="spinner"></div>`);
@@ -825,6 +948,7 @@ const Evaluate = {
       if (session) {
         this.players = await api('players', 'list').then(all => all.filter(p => p.division_id == session.division_id));
         this.progress = await fetch(`api/sessions.php?action=progress&session_id=${session.id}`).then(r => r.json());
+        this.skills  = await LeagueSkills.get();
         this.renderActive();
         App.pollTimer = setInterval(() => this.refresh(), 5000);
       } else {
@@ -852,7 +976,7 @@ const Evaluate = {
     setMain(`
       <h2 class="section-title">Evaluation Session</h2>
       <div class="card card-pad" style="max-width:460px">
-        <p class="text-muted text-sm mb16">Start a session for a division. Coaches will score each player on all four skills.</p>
+        <p class="text-muted text-sm mb16">Start a session for a division. Coaches will score each player on all configured skills.</p>
         <div class="field-group">
           <label class="field-label">Select Division</label>
           <select id="eval-div"><option value="">-- Choose Division --</option>${opts}</select>
@@ -882,14 +1006,14 @@ const Evaluate = {
     });
 
     const rows = this.players.map(p => {
-      const cells = SKILLS.map((sk, si) => {
+      const cells = this.skills.map((sk, si) => {
         const sc = pmap[p.id]?.[si];
         return `<td class="center">${sc ? `<span class="score-val ${scoreClass(sc)}">${sc}</span>` : '<span class="score-none">—</span>'}</td>`;
       }).join('');
       return `<tr><td><span style="color:var(--blue);font-size:12px;font-weight:700">#${playerNumber(p.id)}</span> ${escHtml(p.name)}</td>${cells}</tr>`;
     }).join('');
 
-    const skillHeaders = SKILLS.map(sk => `<th class="center">${sk}</th>`).join('');
+    const skillHeaders = this.skills.map(sk => `<th class="center">${sk}</th>`).join('');
 
     setMain(`
       <h2 class="section-title">Evaluation Session</h2>
@@ -929,6 +1053,7 @@ const CoachEvaluate = {
   mode: 'evaluate',        // 'evaluate' | 'list' | 'score'
   viewSkillIndex: 0,
   editPlayerIndex: 0,
+  skills: [],
 
   async load() {
     setMain(`<div class="no-session"><div class="big-icon">⚾</div><p class="text-muted">Loading…</p></div>`);
@@ -956,6 +1081,7 @@ const CoachEvaluate = {
     if (!players.length) { this.renderNoSession(); return; }
 
     this.players = players;
+    this.skills  = await LeagueSkills.get();
 
     // Build allScores from cached raw rows + anything in the local queue
     this.allScores = {};
@@ -1034,7 +1160,7 @@ const CoachEvaluate = {
 
   // ── Skill progress bar — all skills clickable ──
   skillStepsHtml() {
-    return SKILLS.map((sk, i) => {
+    return this.skills.map((sk, i) => {
       const allDone = this.players.length > 0 && this.players.every(p => this.allScores[i]?.[p.id] !== undefined);
       const active  = i === this.selectedSkillIndex;
       const state   = allDone ? 'done' : active ? 'current' : 'upcoming';
@@ -1118,7 +1244,7 @@ const CoachEvaluate = {
   renderEvaluate() {
     const s = this.session;
     const player = this.players[this.localPlayerIndex];
-    const skill  = SKILLS[this.selectedSkillIndex];
+    const skill  = this.skills[this.selectedSkillIndex];
     const remaining = this.players.length - this.scoredSet.size;
     const num    = playerNumber(player.id);
     const isScored = this.scoredSet.has(player.id);
@@ -1167,9 +1293,9 @@ const CoachEvaluate = {
   // ── List: all players for a skill with their scores ──
   renderList() {
     const si = this.viewSkillIndex;
-    const skill = SKILLS[si];
+    const skill = this.skills[si];
 
-    const tabs = SKILLS.map((sk, i) => {
+    const tabs = this.skills.map((sk, i) => {
       const allDone = this.players.every(p => this.allScores[i]?.[p.id] !== undefined);
       const active = i === si;
       return `<button class="skill-tab${active ? ' active' : ''}" onclick="CoachEvaluate.viewSkill(${i})">${allDone ? '✓ ' : ''}${sk}</button>`;
@@ -1196,7 +1322,7 @@ const CoachEvaluate = {
   renderScore() {
     const p  = this.players[this.editPlayerIndex];
     const si = this.viewSkillIndex;
-    const skill = SKILLS[si];
+    const skill = this.skills[si];
     const num = playerNumber(p.id);
     const existing = this.allScores[si]?.[p.id];
 
@@ -1227,11 +1353,11 @@ const CoachEvaluate = {
   },
 
   renderSkillDone() {
-    const skill = SKILLS[this.selectedSkillIndex];
-    const allComplete = SKILLS.every((_, i) =>
+    const skill = this.skills[this.selectedSkillIndex];
+    const allComplete = this.skills.every((_, i) =>
       this.players.every(p => this.allScores[i]?.[p.id] !== undefined)
     );
-    const nextUndone = SKILLS.findIndex((_, i) =>
+    const nextUndone = this.skills.findIndex((_, i) =>
       i !== this.selectedSkillIndex && this.players.some(p => this.allScores[i]?.[p.id] === undefined)
     );
 
@@ -1245,11 +1371,11 @@ const CoachEvaluate = {
           ${allComplete
             ? `<p class="skill-done-next" style="color:var(--green)">🏆 All skills complete!</p>`
             : nextUndone >= 0
-              ? `<p class="skill-done-next">Tap <strong>${escHtml(SKILLS[nextUndone])}</strong> above to continue.</p>`
+              ? `<p class="skill-done-next">Tap <strong>${escHtml(this.skills[nextUndone])}</strong> above to continue.</p>`
               : ''}
           <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:16px">
             <button class="btn btn-secondary" onclick="CoachEvaluate.viewSkill(${this.selectedSkillIndex})">Review ${escHtml(skill)}</button>
-            ${nextUndone >= 0 ? `<button class="btn btn-primary" onclick="CoachEvaluate.switchSkill(${nextUndone})">Score ${escHtml(SKILLS[nextUndone])} →</button>` : ''}
+            ${nextUndone >= 0 ? `<button class="btn btn-primary" onclick="CoachEvaluate.switchSkill(${nextUndone})">Score ${escHtml(this.skills[nextUndone])} →</button>` : ''}
           </div>
         </div>
       </div>`);
@@ -1364,12 +1490,20 @@ const Results = {
   divisions: [],
   filterDiv: 'all',
   isAdmin: false,
+  skills: [],
 
   async load() {
     this.isAdmin = App.user.is_admin;
     setMain(`<h2 class="section-title">${this.isAdmin ? 'All Results' : 'My Evaluations'}</h2><div class="spinner"></div>`);
-    this.divisions = await api('divisions', 'list');
-    await this.render();
+    try {
+      [this.divisions, this.skills] = await Promise.all([
+        api('divisions', 'list'),
+        LeagueSkills.get()
+      ]);
+      await this.render();
+    } catch (e) {
+      setMain(`<h2 class="section-title">${this.isAdmin ? 'All Results' : 'My Evaluations'}</h2><div class="alert alert-error">${escHtml(e.message)}</div>`);
+    }
   },
 
   async render() {
@@ -1414,7 +1548,7 @@ const Results = {
 
     const tableRows = players.length
       ? players.map((p, i) => {
-          const skillCells = SKILLS.map((_, si) => {
+          const skillCells = this.skills.map((_, si) => {
             const sc = p.skills[si];
             return `<td class="center">${sc != null ? `<span class="score-val ${scoreClass(sc)}">${sc.toFixed(1)}</span>` : '<span class="score-none">—</span>'}</td>`;
           }).join('');
@@ -1426,7 +1560,7 @@ const Results = {
             <td class="center">${p.overall != null ? `<span class="score-val ${scoreClass(p.overall)}" style="font-size:16px">${p.overall.toFixed(1)}</span>` : '<span class="score-none">—</span>'}</td>
           </tr>`;
         }).join('')
-      : `<tr class="empty-row"><td colspan="8">No results yet.</td></tr>`;
+      : `<tr class="empty-row"><td colspan="${4 + this.skills.length}">No results yet.</td></tr>`;
 
     setMain(`
       <h2 class="section-title">${this.isAdmin ? 'All Results' : 'My Evaluations'}</h2>
@@ -1436,7 +1570,7 @@ const Results = {
           <thead>
             <tr>
               <th>#</th><th>Player</th><th class="center">Division</th>
-              ${SKILLS.map(s => `<th class="center">${s}</th>`).join('')}
+              ${this.skills.map(s => `<th class="center">${s}</th>`).join('')}
               <th class="center" style="color:var(--blue)">Overall</th>
             </tr>
           </thead>
@@ -1513,6 +1647,7 @@ App.switchTab = function(tab) {
     divisions: Divisions,
     players:   Players,
     coaches:   Coaches,
+    skills:    Skills,
     evaluate:  EvaluateRouter,
     results:   Results
   };
