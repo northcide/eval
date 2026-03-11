@@ -445,8 +445,8 @@ const Leagues = {
               <div class="text-xs text-dim">${l.coach_count} coaches · ${l.division_count} divisions</div>
             </div>
             <div class="league-card-actions">
-              <button class="btn btn-sm btn-primary" onclick="App.enterManageMode({id:${l.id},name:'${escHtml(l.name)}'})">Manage →</button>
-              <button class="btn-danger" onclick="Leagues.delete(${l.id}, '${escHtml(l.name)}')">🗑</button>
+              <button class="btn btn-sm btn-primary" onclick="Leagues.manage(${l.id})">Manage →</button>
+              <button class="btn-danger" onclick="Leagues.delete(${l.id})">🗑</button>
             </div>
           </div>`).join('')
       : `<div class="empty-state"><p class="text-dim">${this._all.length ? 'No leagues match your search.' : 'No leagues yet. Create one below.'}</p></div>`;
@@ -505,8 +505,15 @@ const Leagues = {
     } catch (e) { showAlert('leagues-alert', e.message); }
   },
 
-  async delete(id, name) {
-    if (!confirm(`Delete league "${name}"?\n\nThis will permanently delete all coaches, divisions, players, and evaluation data for this league.`)) return;
+  manage(id) {
+    const l = this._all.find(x => x.id === id);
+    if (l) App.enterManageMode({ id: l.id, name: l.name });
+  },
+
+  async delete(id) {
+    const l = this._all.find(x => x.id === id);
+    if (!l) return;
+    if (!confirm(`Delete league "${l.name}"?\n\nThis will permanently delete all coaches, divisions, players, and evaluation data for this league.`)) return;
     try { await api('leagues', 'delete', { id }); this.load(); }
     catch (e) { alert(e.message); }
   }
