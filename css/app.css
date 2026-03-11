@@ -632,6 +632,16 @@ tr:hover td { background: var(--blue-dim); }
   .nav-icon  { font-size: 18px; }
 }
 
+/* ── League cards ────────────────────────────────────────────────────────────── */
+.league-card {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 12px; padding: 14px 16px;
+  box-shadow: var(--shadow-sm);
+}
+.league-icon { font-size: 24px; }
+.league-name { font-weight: 600; font-size: 15px; color: var(--text); }
+
 /* ── Change Password Modal ───────────────────────────────────────────────────── */
 .modal-overlay {
   position: fixed; inset: 0; background: rgba(0,0,0,0.45);

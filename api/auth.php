@@ -28,6 +28,7 @@ switch ($action) {
             'id'       => $coach['id'],
             'name'     => $coach['name'],
             'is_admin' => (bool)$coach['is_admin'],
+            'league_id'=> $coach['league_id'] !== null ? (int)$coach['league_id'] : null,
         ];
 
         jsonResponse(['success' => true, 'coach' => $_SESSION['coach']]);

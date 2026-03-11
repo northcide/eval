@@ -12,33 +12,51 @@ $positionExpr = "CASE WHEN p.is_pitcher=1 AND p.is_catcher=1 THEN 'Pitcher/Catch
 
 switch ($action) {
     case 'list':
-        requireLogin();
+        $coach = requireLogin();
         $db = getDB();
         $divisionId = isset($_GET['division_id']) ? (int)$_GET['division_id'] : null;
 
         if ($divisionId) {
+            $where  = 'p.division_id = ?';
+            $params = [$divisionId];
+            if ($coach['league_id'] !== null) {
+                $where  .= ' AND d.league_id = ?';
+                $params[] = $coach['league_id'];
+            }
             $stmt = $db->prepare("
                 SELECT p.*, d.name as division_name, $positionExpr
                 FROM players p
                 LEFT JOIN divisions d ON d.id = p.division_id
-                WHERE p.division_id = ?
+                WHERE $where
                 ORDER BY p.name
             ");
-            $stmt->execute([$divisionId]);
+            $stmt->execute($params);
         } else {
-            $stmt = $db->query("
-                SELECT p.*, d.name as division_name, $positionExpr
-                FROM players p
-                LEFT JOIN divisions d ON d.id = p.division_id
-                ORDER BY d.name, p.name
-            ");
+            if ($coach['league_id'] !== null) {
+                $stmt = $db->prepare("
+                    SELECT p.*, d.name as division_name, $positionExpr
+                    FROM players p
+                    LEFT JOIN divisions d ON d.id = p.division_id
+                    WHERE d.league_id = ?
+                    ORDER BY d.name, p.name
+                ");
+                $stmt->execute([$coach['league_id']]);
+            } else {
+                $stmt = $db->query("
+                    SELECT p.*, d.name as division_name, $positionExpr
+                    FROM players p
+                    LEFT JOIN divisions d ON d.id = p.division_id
+                    ORDER BY d.name, p.name
+                ");
+            }
         }
         jsonResponse($stmt->fetchAll());
         break;
 
     case 'create':
-        requireAdmin();
-        $data = getInput();
+        $coach = requireAdmin();
+        if ($coach['league_id'] === null) jsonResponse(['error' => 'Superadmin cannot create players directly'], 400);
+        $data       = getInput();
         $name       = trim($data['name'] ?? '');
         $age        = isset($data['age']) && $data['age'] !== '' ? (int)$data['age'] : null;
         $isPitcher  = empty($data['is_pitcher']) ? 0 : 1;
@@ -48,6 +66,15 @@ switch ($action) {
         if (!$name) jsonResponse(['error' => 'Name required'], 400);
 
         $db = getDB();
+
+        // Verify division belongs to this league
+        if ($divisionId) {
+            $stmt = $db->prepare("SELECT league_id FROM divisions WHERE id = ?");
+            $stmt->execute([$divisionId]);
+            $div = $stmt->fetch();
+            if (!$div || $div['league_id'] != $coach['league_id']) jsonResponse(['error' => 'Division not in your league'], 403);
+        }
+
         $db->prepare("INSERT INTO players (name, age, is_pitcher, is_catcher, division_id) VALUES (?, ?, ?, ?, ?)")
            ->execute([$name, $age, $isPitcher, $isCatcher, $divisionId]);
         $id = $db->lastInsertId();
@@ -58,7 +85,8 @@ switch ($action) {
         break;
 
     case 'import':
-        requireAdmin();
+        $coach = requireAdmin();
+        if ($coach['league_id'] === null) jsonResponse(['error' => 'Superadmin cannot import players directly'], 400);
         $data   = getInput();
         $rows   = $data['players'] ?? [];
         $defDiv = isset($data['default_division_id']) ? (int)$data['default_division_id'] : null;
@@ -82,7 +110,7 @@ switch ($action) {
         break;
 
     case 'update':
-        requireAdmin();
+        $coach = requireAdmin();
         $data = getInput();
         $id         = (int)($data['id'] ?? 0);
         $name       = trim($data['name'] ?? '');
@@ -95,18 +123,36 @@ switch ($action) {
         if (!$name) jsonResponse(['error' => 'Name required'], 400);
 
         $db = getDB();
+
+        // Verify player belongs to this league
+        if ($coach['league_id'] !== null) {
+            $stmt = $db->prepare("SELECT d.league_id FROM players p LEFT JOIN divisions d ON d.id=p.division_id WHERE p.id=?");
+            $stmt->execute([$id]);
+            $row = $stmt->fetch();
+            if (!$row || $row['league_id'] != $coach['league_id']) jsonResponse(['error' => 'Access denied'], 403);
+        }
+
         $db->prepare("UPDATE players SET name=?, age=?, is_pitcher=?, is_catcher=?, division_id=? WHERE id=?")
            ->execute([$name, $age, $isPitcher, $isCatcher, $divisionId, $id]);
         jsonResponse(['success' => true]);
         break;
 
     case 'delete':
-        requireAdmin();
+        $coach = requireAdmin();
         $data = getInput();
         $id = (int)($data['id'] ?? 0);
         if (!$id) jsonResponse(['error' => 'ID required'], 400);
 
         $db = getDB();
+
+        // Verify player belongs to this league
+        if ($coach['league_id'] !== null) {
+            $stmt = $db->prepare("SELECT d.league_id FROM players p LEFT JOIN divisions d ON d.id=p.division_id WHERE p.id=?");
+            $stmt->execute([$id]);
+            $row = $stmt->fetch();
+            if (!$row || $row['league_id'] != $coach['league_id']) jsonResponse(['error' => 'Access denied'], 403);
+        }
+
         $db->prepare("DELETE FROM players WHERE id = ?")->execute([$id]);
         jsonResponse(['success' => true]);
         break;

@@ -56,6 +56,15 @@ function requireAdmin(): array {
     return $coach;
 }
 
+function requireSuperAdmin(): array {
+    $coach = requireLogin();
+    if (empty($coach['is_admin']) || $coach['league_id'] !== null) {
+        http_response_code(403);
+        die(json_encode(['error' => 'Superadmin access required']));
+    }
+    return $coach;
+}
+
 function jsonResponse(mixed $data, int $status = 200): void {
     http_response_code($status);
     header('Content-Type: application/json');

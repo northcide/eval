@@ -209,9 +209,17 @@ const App = {
 
   showApp() {
     const isAdmin = this.user.is_admin;
-    const tabs = isAdmin
-      ? [['divisions','Divisions','⬡'],['players','Players','👤'],['coaches','Coaches','🛡'],['evaluate','Evaluate','⚾'],['results','Results','📊']]
-      : [['evaluate','Evaluate','⚾'],['results','My Results','📊']];
+    const isSuperAdmin = isAdmin && this.user.league_id === null;
+    const isLeagueAdmin = isAdmin && this.user.league_id !== null;
+
+    let tabs;
+    if (isSuperAdmin) {
+      tabs = [['leagues','Leagues','🏆']];
+    } else if (isLeagueAdmin) {
+      tabs = [['divisions','Divisions','⬡'],['players','Players','👤'],['coaches','Coaches','🛡'],['evaluate','Evaluate','⚾'],['results','Results','📊']];
+    } else {
+      tabs = [['evaluate','Evaluate','⚾'],['results','My Results','📊']];
+    }
 
     document.getElementById('app').innerHTML = `
       <div class="header">
@@ -219,7 +227,7 @@ const App = {
           <div class="header-icon">⚾</div>
           <div>
             <span class="header-title">Scout Pro</span>
-            ${isAdmin ? '<span class="badge-admin">ADMIN</span>' : ''}
+            ${isSuperAdmin ? '<span class="badge-admin">SUPERADMIN</span>' : isLeagueAdmin ? '<span class="badge-admin">ADMIN</span>' : ''}
           </div>
         </div>
         <div class="header-right">
@@ -364,6 +372,67 @@ const ChangePassword = {
       alert.textContent = e.message;
       alert.classList.remove('hidden');
     }
+  }
+};
+
+// ─── LEAGUES (Superadmin only) ────────────────────────────────────────────────
+const Leagues = {
+  async load() {
+    setMain(`<h2 class="section-title">Leagues</h2><div class="spinner"></div>`);
+    const leagues = await api('leagues', 'list');
+    this.render(leagues);
+  },
+
+  render(leagues) {
+    const cards = leagues.length
+      ? leagues.map(l => `
+          <div class="league-card">
+            <div class="league-icon">🏆</div>
+            <div style="flex:1">
+              <div class="league-name">${escHtml(l.name)}</div>
+              <div class="text-xs text-dim">${l.coach_count} coaches · ${l.division_count} divisions</div>
+            </div>
+            <button class="btn-danger" onclick="Leagues.delete(${l.id}, '${escHtml(l.name)}')">🗑</button>
+          </div>`).join('')
+      : `<div class="empty-state"><p class="text-dim">No leagues yet. Create one below.</p></div>`;
+
+    setMain(`
+      <h2 class="section-title">Leagues</h2>
+      <div class="card-grid mb16">${cards}</div>
+      <div class="card" style="padding:20px">
+        <h3 style="margin:0 0 16px;font-size:15px;font-weight:700">Create New League</h3>
+        <div class="field-group">
+          <label class="field-label">League Name</label>
+          <input id="lg-name" placeholder="e.g. Westside Little League" />
+        </div>
+        <div class="field-group">
+          <label class="field-label">League Admin Name</label>
+          <input id="lg-admin-name" placeholder="Admin's login name" />
+        </div>
+        <div class="field-group">
+          <label class="field-label">League Admin Password</label>
+          <input id="lg-admin-pass" type="password" placeholder="Min 6 characters" />
+        </div>
+        <div id="leagues-alert"></div>
+        <button class="btn btn-primary" onclick="Leagues.create()">＋ Create League</button>
+      </div>`);
+  },
+
+  async create() {
+    const leagueName = document.getElementById('lg-name').value.trim();
+    const adminName  = document.getElementById('lg-admin-name').value.trim();
+    const adminPass  = document.getElementById('lg-admin-pass').value;
+    if (!leagueName || !adminName || !adminPass) return showAlert('leagues-alert', 'All fields required');
+    try {
+      await api('leagues', 'create', { league_name: leagueName, admin_name: adminName, admin_password: adminPass });
+      this.load();
+    } catch (e) { showAlert('leagues-alert', e.message); }
+  },
+
+  async delete(id, name) {
+    if (!confirm(`Delete league "${name}"?\n\nThis will permanently delete all coaches, divisions, players, and evaluation data for this league.`)) return;
+    try { await api('leagues', 'delete', { id }); this.load(); }
+    catch (e) { alert(e.message); }
   }
 };
 
@@ -610,11 +679,12 @@ const Coaches = {
   },
 
   render(coaches) {
+    const isSuperAdmin = App.user.is_admin && App.user.league_id === null;
     const cards = coaches.map(c => `
       <div class="coach-card">
         <div class="coach-avatar ${c.is_admin ? 'admin' : 'coach'}">${c.is_admin ? '🛡' : '👤'}</div>
         <div style="flex:1">
-          <div>${escHtml(c.name)}</div>
+          <div>${escHtml(c.name)}${isSuperAdmin && c.league_name ? ` <span class="text-xs text-dim">(${escHtml(c.league_name)})</span>` : ''}</div>
           <div class="text-xs text-dim">${c.is_admin ? 'Administrator' : 'Coach'}</div>
         </div>
         ${!c.is_admin ? `<button class="btn-danger" onclick="Coaches.delete(${c.id})">🗑</button>` : ''}
@@ -1351,6 +1421,7 @@ App.switchTab = function(tab) {
   const content = document.getElementById('main-content');
   if (content) content.classList.toggle('eval-mode', tab === 'evaluate');
   const views = {
+    leagues:   Leagues,
     divisions: Divisions,
     players:   Players,
     coaches:   Coaches,

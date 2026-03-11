@@ -1,7 +1,10 @@
 <?php
 require_once __DIR__ . '/config.php';
 header('Content-Type: application/json');
-requireAdmin();
+$demoCoach = requireAdmin();
+if ($demoCoach['league_id'] === null) {
+    jsonResponse(['error' => 'Superadmin cannot seed demo data directly. Log in as a league admin.'], 403);
+}
 
 $action = $_GET['action'] ?? '';
 $db = getDB();
@@ -46,10 +49,10 @@ switch ($action) {
         $demo = ['Majors', 'AAA', 'AA', 'Single-A'];
         $created = 0;
         foreach ($demo as $name) {
-            $exists = $db->prepare("SELECT id FROM divisions WHERE name = ?");
-            $exists->execute([$name]);
+            $exists = $db->prepare("SELECT id FROM divisions WHERE name = ? AND league_id = ?");
+            $exists->execute([$name, $demoCoach['league_id']]);
             if (!$exists->fetch()) {
-                $db->prepare("INSERT INTO divisions (name) VALUES (?)")->execute([$name]);
+                $db->prepare("INSERT INTO divisions (name, league_id) VALUES (?, ?)")->execute([$name, $demoCoach['league_id']]);
                 $created++;
             }
         }
@@ -60,11 +63,14 @@ switch ($action) {
 
     // ── Seed players — 100 per division ────────────────────────────────────
     case 'players':
-        // Delete all existing players (and their evaluations)
-        $db->exec("DELETE FROM evaluations WHERE player_id IN (SELECT id FROM players)");
-        $db->exec("DELETE FROM players");
+        // Delete all existing players (and their evaluations) for this league
+        $leagueId = $demoCoach['league_id'];
+        $db->prepare("DELETE FROM evaluations WHERE player_id IN (SELECT p.id FROM players p JOIN divisions d ON d.id=p.division_id WHERE d.league_id=?)")->execute([$leagueId]);
+        $db->prepare("DELETE FROM players WHERE division_id IN (SELECT id FROM divisions WHERE league_id=?)")->execute([$leagueId]);
 
-        $divs = $db->query("SELECT id FROM divisions")->fetchAll();
+        $divs = $db->prepare("SELECT id FROM divisions WHERE league_id=?");
+        $divs->execute([$leagueId]);
+        $divs = $divs->fetchAll();
         if (!$divs) jsonResponse(['error' => 'No divisions found. Create divisions first.'], 400);
 
         $total = 0;
@@ -97,19 +103,20 @@ switch ($action) {
 
     // ── Seed coaches — 10 demo coaches ─────────────────────────────────────
     case 'coaches':
-        // Delete all non-admin coaches
-        $db->exec("DELETE FROM evaluations WHERE coach_id IN (SELECT id FROM coaches WHERE is_admin = 0)");
-        $db->exec("DELETE FROM coaches WHERE is_admin = 0");
+        $leagueId = $demoCoach['league_id'];
+        // Delete all non-admin coaches in this league
+        $db->prepare("DELETE FROM evaluations WHERE coach_id IN (SELECT id FROM coaches WHERE is_admin = 0 AND league_id = ?)")->execute([$leagueId]);
+        $db->prepare("DELETE FROM coaches WHERE is_admin = 0 AND league_id = ?")->execute([$leagueId]);
 
         $hash = password_hash('coach123', PASSWORD_DEFAULT);
-        $stmt = $db->prepare("INSERT INTO coaches (name, password, is_admin) VALUES (?, ?, 0)");
+        $stmt = $db->prepare("INSERT INTO coaches (name, password, is_admin, league_id) VALUES (?, ?, 0, ?)");
         $used = [];
         $created = 0;
         while ($created < 10) {
             $name = $coachFirstNames[array_rand($coachFirstNames)] . ' ' . $coachLastNames[array_rand($coachLastNames)];
             if (isset($used[$name])) continue;
             $used[$name] = true;
-            $stmt->execute([$name, $hash]);
+            $stmt->execute([$name, $hash, $leagueId]);
             $created++;
         }
         jsonResponse(['created' => $created, 'message' => "Created {$created} coaches. Password for all: coach123"]);
