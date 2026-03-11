@@ -131,6 +131,32 @@ switch ($action) {
         jsonResponse(['success' => true, 'coach' => $_SESSION['coach']]);
         break;
 
+    case 'my_leagues':
+        $coach = requireLogin();
+        $db    = getDB();
+        $leagues = [];
+
+        if ($coach['league_id'] !== null) {
+            $stmt = $db->prepare("SELECT l.id, l.name FROM leagues l WHERE l.id = ?");
+            $stmt->execute([$coach['league_id']]);
+            $row = $stmt->fetch();
+            if ($row) $leagues[] = ['id' => (int)$row['id'], 'name' => $row['name'], 'is_admin' => (bool)$coach['is_admin'], 'native' => true];
+        }
+
+        $stmt = $db->prepare("
+            SELECT l.id, l.name, cl.is_admin
+            FROM coach_leagues cl JOIN leagues l ON l.id = cl.league_id
+            WHERE cl.coach_id = ?
+        ");
+        $stmt->execute([$coach['id']]);
+        foreach ($stmt->fetchAll() as $row) {
+            $already = array_filter($leagues, fn($x) => $x['id'] === (int)$row['id']);
+            if (!$already) $leagues[] = ['id' => (int)$row['id'], 'name' => $row['name'], 'is_admin' => (bool)$row['is_admin'], 'native' => false];
+        }
+
+        jsonResponse(['leagues' => $leagues]);
+        break;
+
     case 'logout':
         session_destroy();
         jsonResponse(['success' => true]);

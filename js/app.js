@@ -171,6 +171,7 @@ const App = {
   currentTab: null,
   pollTimer: null,
   managingLeague: null,
+  leagues: [],
 
   async init() {
     try {
@@ -277,6 +278,14 @@ const App = {
     const isSuperAdmin = isAdmin && this.user.league_id === null;
     const isLeagueAdmin = isAdmin && this.user.league_id !== null;
 
+    // Fetch league list for non-superadmin users (enables switch-league button)
+    if (!isSuperAdmin) {
+      api('auth', 'my_leagues').then(r => {
+        this.leagues = r.leagues || [];
+        this._renderSwitchLeagueBtn();
+      }).catch(() => {});
+    }
+
     let tabs;
     if (isSuperAdmin) {
       tabs = [['leagues','Leagues','🏆']];
@@ -361,6 +370,55 @@ const App = {
     document.getElementById('manage-banner').hidden = true;
     this.currentTab = 'leagues';
     Leagues.load();
+  },
+
+  _renderSwitchLeagueBtn() {
+    const existing = document.getElementById('switch-league-btn');
+    if (existing) existing.remove();
+    if (this.leagues.length <= 1) return;
+    const btn = document.createElement('button');
+    btn.id = 'switch-league-btn';
+    btn.className = 'btn-logout';
+    btn.textContent = '⇄ Switch League';
+    btn.onclick = () => this.switchLeague();
+    const headerRight = document.querySelector('.header-right');
+    if (headerRight) headerRight.insertBefore(btn, headerRight.firstChild);
+  },
+
+  async switchLeague() {
+    if (this.leagues.length <= 1) return;
+    const current = this.user.league_id;
+    const items = this.leagues.map(l => `
+      <div class="league-card" style="cursor:pointer;${l.id === current ? 'opacity:.5;pointer-events:none' : ''}" onclick="App._doSwitchLeague(${l.id})">
+        <div class="league-icon">🏆</div>
+        <div class="league-card-info">
+          <div class="league-name">${escHtml(l.name)}${l.id === current ? ' <span class="text-xs text-dim">(current)</span>' : ''}</div>
+          <div class="text-xs text-dim">${l.is_admin ? 'Administrator' : 'Coach'}</div>
+        </div>
+        ${l.id !== current ? '<div class="league-card-actions"><button class="btn btn-sm btn-primary">Switch →</button></div>' : ''}
+      </div>`).join('');
+
+    document.getElementById('app').insertAdjacentHTML('beforeend', `
+      <div id="switch-league-overlay" class="modal-overlay" onclick="if(event.target===this)document.getElementById('switch-league-overlay').remove()">
+        <div class="modal-box">
+          <h3 class="modal-title mb12">Switch League</h3>
+          <div class="league-list">${items}</div>
+          <div style="text-align:center;margin-top:12px">
+            <button class="btn btn-secondary" onclick="document.getElementById('switch-league-overlay').remove()">Cancel</button>
+          </div>
+        </div>
+      </div>`);
+  },
+
+  async _doSwitchLeague(leagueId) {
+    document.getElementById('switch-league-overlay')?.remove();
+    try {
+      const { coach } = await api('auth', 'select_league', { league_id: leagueId });
+      this.user = coach;
+      this.managingLeague = null;
+      clearInterval(this.pollTimer);
+      this.showApp();
+    } catch (e) { alert(e.message); }
   }
 };
 
@@ -985,7 +1043,7 @@ const Coaches = {
           const cols = isSuperAdmin ? 5 : 4;
           return `<tr id="coach-row-${c.id}">
             <td>${isSuperAdminTarget ? '⭐' : c.is_admin ? '🛡' : '👤'}</td>
-            <td>${nameLine}${emailLine}</td>
+            <td><span class="coach-name-link" onclick="Coaches.showDetail(${c.id})">${nameLine}</span>${emailLine}</td>
             <td>${isSuperAdminTarget ? 'Superadmin' : c.is_admin ? 'Administrator' : 'Coach'}</td>
             ${isSuperAdmin ? `<td class="text-dim">${escHtml(c.league_name || '—')}</td>` : ''}
             <td style="white-space:nowrap">
@@ -1099,6 +1157,97 @@ const Coaches = {
       await api('coaches', 'create', { name, email, password: pass });
       this.load();
     } catch (e) { showAlert('coaches-alert', e.message); }
+  },
+
+  async showDetail(id) {
+    const existing = document.getElementById('coach-detail-modal');
+    if (existing) existing.remove();
+
+    // Insert loading modal first
+    document.getElementById('main-content').insertAdjacentHTML('afterend', `
+      <div id="coach-detail-modal" class="modal-overlay" onclick="if(event.target===this)Coaches.closeDetail()">
+        <div class="modal-box" style="max-width:500px">
+          <div class="spinner"></div>
+        </div>
+      </div>`);
+    document.getElementById('coach-detail-modal').style.display = 'flex';
+
+    try {
+      const [data, allLeagues] = await Promise.all([
+        (async () => { const res = await fetch(`api/coaches.php?action=memberships&coach_id=${id}${App.managingLeague ? '&managing_league_id=' + App.managingLeague.id : ''}`, { credentials: 'same-origin' }); return res.json(); })(),
+        App.user.league_id === null ? api('leagues', 'list') : Promise.resolve([])
+      ]);
+
+      const isSuperAdmin = App.user.is_admin && App.user.league_id === null;
+      const memberRows = data.memberships.map(m => `
+        <div class="membership-row">
+          <div style="flex:1">
+            <span class="membership-league">${escHtml(m.league_name)}</span>
+            ${m.native ? '<span class="badge-native">Home</span>' : '<span class="badge-guest">Guest</span>'}
+          </div>
+          <span class="text-xs text-dim" style="margin-right:8px">${m.is_admin ? 'Administrator' : 'Coach'}</span>
+          ${!m.native ? `<button class="btn-danger" style="font-size:12px" onclick="Coaches.removeFromLeague(${id},${m.league_id})">✕ Remove</button>` : '<span class="text-xs text-dim">—</span>'}
+        </div>`).join('') || '<p class="text-dim text-sm">No league memberships.</p>';
+
+      const currentLeagueIds = new Set(data.memberships.map(m => m.league_id));
+      const availableLeagues = allLeagues.filter(l => !currentLeagueIds.has(l.id));
+      const leagueOpts = availableLeagues.map(l => `<option value="${l.id}">${escHtml(l.name)}</option>`).join('');
+      const addSection = isSuperAdmin && availableLeagues.length ? `
+        <div class="mt16">
+          <p class="text-muted text-sm mb8" style="text-transform:uppercase;letter-spacing:.1em">Add to League</p>
+          <div class="form-row">
+            <select id="detail-league-select" class="grow"><option value="">-- Choose League --</option>${leagueOpts}</select>
+            <select id="detail-role-select"><option value="0">Coach</option><option value="1">Admin</option></select>
+            <button class="btn btn-sm btn-primary" onclick="Coaches.addFromDetail(${id})">Add</button>
+          </div>
+          <div id="detail-alert" class="mt8"></div>
+        </div>` : '';
+
+      document.querySelector('#coach-detail-modal .modal-box').innerHTML = `
+        <h3 class="modal-title">${escHtml(data.name)}</h3>
+        ${data.email ? `<p class="text-sm text-dim mb12">${escHtml(data.email)}</p>` : '<p class="text-sm text-dim mb12">No email set</p>'}
+        <p class="text-muted text-sm mb8" style="text-transform:uppercase;letter-spacing:.1em">League Memberships</p>
+        <div class="membership-list mb8">${memberRows}</div>
+        ${addSection}
+        <div style="text-align:right;margin-top:16px">
+          <button class="btn btn-secondary" onclick="Coaches.closeDetail()">Close</button>
+        </div>`;
+    } catch (e) {
+      document.querySelector('#coach-detail-modal .modal-box').innerHTML = `
+        <p class="text-dim">${escHtml(e.message)}</p>
+        <button class="btn btn-secondary mt8" onclick="Coaches.closeDetail()">Close</button>`;
+    }
+  },
+
+  closeDetail() {
+    document.getElementById('coach-detail-modal')?.remove();
+  },
+
+  async removeFromLeague(coachId, leagueId) {
+    if (!confirm('Remove this coach from that league?')) return;
+    try {
+      await api('coaches', 'remove_from_league', { coach_id: coachId, league_id: leagueId });
+      await this.showDetail(coachId); // refresh modal
+      this.load();
+    } catch (e) { alert(e.message); }
+  },
+
+  async addFromDetail(coachId) {
+    const leagueId = parseInt(document.getElementById('detail-league-select').value);
+    const isAdmin  = parseInt(document.getElementById('detail-role-select').value);
+    if (!leagueId) return showAlert('detail-alert', 'Select a league');
+    try {
+      const res = await fetch('api/coaches.php?action=add_to_league', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ coach_id: coachId, is_admin: isAdmin, managing_league_id: leagueId })
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Failed');
+      await this.showDetail(coachId);
+      this.load();
+    } catch (e) { showAlert('detail-alert', e.message); }
   },
 
   startEdit(id) {

@@ -274,6 +274,81 @@ switch ($action) {
         jsonResponse($stmt->fetchAll());
         break;
 
+    case 'memberships':
+        $coach    = requireAdmin();
+        $targetId = (int)($_GET['coach_id'] ?? 0);
+        if (!$targetId) jsonResponse(['error' => 'coach_id required'], 400);
+
+        $db   = getDB();
+        $stmt = $db->prepare("SELECT id, name, email, is_admin, league_id FROM coaches WHERE id = ?");
+        $stmt->execute([$targetId]);
+        $target = $stmt->fetch();
+        if (!$target) jsonResponse(['error' => 'Coach not found'], 404);
+
+        $memberships = [];
+
+        // Native league
+        if ($target['league_id'] !== null) {
+            $lStmt = $db->prepare("SELECT id, name FROM leagues WHERE id = ?");
+            $lStmt->execute([$target['league_id']]);
+            $l = $lStmt->fetch();
+            if ($l) $memberships[] = [
+                'league_id'   => (int)$l['id'],
+                'league_name' => $l['name'],
+                'is_admin'    => (bool)$target['is_admin'],
+                'native'      => true,
+            ];
+        }
+
+        // Guest leagues
+        $clStmt = $db->prepare("
+            SELECT cl.league_id, cl.is_admin, l.name as league_name
+            FROM coach_leagues cl JOIN leagues l ON l.id = cl.league_id
+            WHERE cl.coach_id = ?
+        ");
+        $clStmt->execute([$targetId]);
+        foreach ($clStmt->fetchAll() as $row) {
+            $memberships[] = [
+                'league_id'   => (int)$row['league_id'],
+                'league_name' => $row['league_name'],
+                'is_admin'    => (bool)$row['is_admin'],
+                'native'      => false,
+            ];
+        }
+
+        jsonResponse([
+            'id'          => (int)$target['id'],
+            'name'        => $target['name'],
+            'email'       => $target['email'],
+            'memberships' => $memberships,
+        ]);
+        break;
+
+    case 'remove_from_league':
+        $coach    = requireAdmin();
+        $leagueId = getEffectiveLeagueId($coach);
+        $data     = getInput();
+        $targetId = (int)($data['coach_id'] ?? 0);
+        $removeLeagueId = (int)($data['league_id'] ?? 0);
+        if (!$targetId || !$removeLeagueId) jsonResponse(['error' => 'coach_id and league_id required'], 400);
+
+        // Superadmin can remove from any league; league admin only from their own
+        if ($leagueId !== null && $leagueId !== $removeLeagueId) jsonResponse(['error' => 'Access denied'], 403);
+
+        $db = getDB();
+        // Only remove guest memberships; cannot remove native league this way
+        $stmt = $db->prepare("SELECT league_id FROM coaches WHERE id = ?");
+        $stmt->execute([$targetId]);
+        $target = $stmt->fetch();
+        if ($target && (int)$target['league_id'] === $removeLeagueId) {
+            jsonResponse(['error' => 'Cannot remove coach from their home league. Delete their account instead.'], 409);
+        }
+
+        $db->prepare("DELETE FROM coach_leagues WHERE coach_id = ? AND league_id = ?")
+           ->execute([$targetId, $removeLeagueId]);
+        jsonResponse(['success' => true]);
+        break;
+
     default:
         jsonResponse(['error' => 'Unknown action'], 400);
 }

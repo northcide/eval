@@ -724,3 +724,11 @@ tr:hover td { background: var(--blue-dim); }
 .canned-skill-btn:hover:not(:disabled) { background: var(--blue-dim); border-color: var(--blue-border); color: var(--blue); }
 .canned-skill-btn.canned-added { background: var(--bg3); color: var(--muted); cursor: default; opacity: 0.6; }
 .mt8 { margin-top: 8px; }
+
+/* ── Coach detail modal ──────────────────────────────── */
+.coach-name-link { cursor: pointer; color: var(--blue); text-decoration: none; }
+.coach-name-link:hover { text-decoration: underline; }
+.membership-list { display: flex; flex-direction: column; gap: 8px; }
+.membership-row { display: flex; align-items: center; padding: 8px 12px; background: var(--bg3); border-radius: 8px; gap: 8px; }
+.membership-league { font-weight: 600; font-size: 14px; }
+.badge-native { display:inline-block; font-size:10px; font-weight:700; background:var(--blue-dim); color:var(--blue); border-radius:4px; padding:1px 5px; margin-left:6px; vertical-align:middle; text-transform:uppercase; }
