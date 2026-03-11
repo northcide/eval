@@ -530,11 +530,11 @@ const Divisions = {
   render(divs) {
     const cards = divs.length
       ? divs.map(d => `
-          <div class="div-card">
+          <div class="div-card" onclick="Divisions.goToPlayers(${d.id})" style="cursor:pointer">
             <span class="diamond">◇</span>
             <span style="flex:1">${escHtml(d.name)}</span>
             <span class="text-dim text-sm">${d.player_count} players</span>
-            <button class="btn-danger" onclick="Divisions.delete(${d.id})">🗑</button>
+            <button class="btn-danger" onclick="event.stopPropagation();Divisions.delete(${d.id})">🗑</button>
           </div>`).join('')
       : `<p class="text-dim">No divisions yet.</p>`;
 
@@ -556,6 +556,11 @@ const Divisions = {
       await api('divisions', 'create', { name });
       this.load();
     } catch (e) { showAlert('div-alert', e.message); }
+  },
+
+  goToPlayers(divisionId) {
+    Players.filterDiv = divisionId;
+    App.switchTab('players');
   },
 
   async delete(id) {
