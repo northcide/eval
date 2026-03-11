@@ -441,10 +441,15 @@ const Leagues = {
   _perPage: 15,
 
   async load() {
-    setMain(`<h2 class="section-title">Leagues</h2><div class="spinner"></div>`);
-    this._all  = await api('leagues', 'list');
-    this._page = 0;
-    this.render();
+    const title = (App.user.is_admin && App.user.league_id !== null) ? 'My League' : 'Leagues';
+    setMain(`<h2 class="section-title">${title}</h2><div class="spinner"></div>`);
+    try {
+      this._all  = await api('leagues', 'list');
+      this._page = 0;
+      this.render();
+    } catch (e) {
+      setMain(`<h2 class="section-title">${title}</h2><div class="alert alert-error">${escHtml(e.message)}</div>`);
+    }
   },
 
   render() {
