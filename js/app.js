@@ -337,14 +337,14 @@ const App = {
     clearInterval(this.pollTimer);
     this.currentTab = tab;
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-    const views = { leagues: Leagues, divisions: Divisions, players: Players, coaches: Coaches, skills: Skills, evaluate: Evaluate, results: Results };
+    const views = { leagues: Leagues, divisions: Divisions, players: Players, coaches: Coaches, skills: Skills, sessions: Sessions, evaluate: CoachEvaluate, results: Results };
     views[tab]?.load();
   },
 
   enterManageMode(league) {
     this.managingLeague = league;
     const isLeagueAdmin = this.user.is_admin && this.user.league_id !== null;
-    const adminTabs = [['divisions','Divisions','⬡'],['players','Players','👤'],['coaches','Coaches','🛡'],['skills','Skills','⚙'],['evaluate','Evaluate','⚾'],['results','Results','📊']];
+    const adminTabs = [['divisions','Divisions','⬡'],['players','Players','👤'],['coaches','Coaches','🛡'],['skills','Skills','⚙'],['sessions','Sessions','📋'],['evaluate','Evaluate','⚾'],['results','Results','📊']];
     const sidebar = document.getElementById('sidebar');
     sidebar.className = 'sidebar';
     sidebar.innerHTML = adminTabs.map(([id,label,icon]) => `
@@ -1334,121 +1334,99 @@ const Coaches = {
   }
 };
 
-// ─── EVALUATE (Admin) ─────────────────────────────────────────────────────────
-const Evaluate = {
-  session: null,
-  players: [],
-  progress: [],
-  skills: [],
-
+// ─── SESSIONS (Admin management) ─────────────────────────────────────────────
+const Sessions = {
   async load() {
-    setMain(`<h2 class="section-title">Evaluation Session</h2><div class="spinner"></div>`);
+    setMain(`<h2 class="section-title">Evaluation Sessions</h2><div class="spinner"></div>`);
     try {
-      const [session, divisions] = await Promise.all([
-        api('sessions', 'active').catch(() => null),
-        api('divisions', 'list')
-      ]);
-      this.session = session;
-      this.divisions = divisions;
-      if (session) {
-        this.players = await api('players', 'list').then(all => all.filter(p => p.division_id == session.division_id));
-        this.progress = await fetch(`api/sessions.php?action=progress&session_id=${session.id}`).then(r => r.json());
-        this.skills  = await LeagueSkills.get();
-        this.renderActive();
-        App.pollTimer = setInterval(() => this.refresh(), 5000);
-      } else {
-        this.renderSetup();
-      }
+      const sessions = await api('sessions', 'list');
+      this.render(sessions);
     } catch (e) {
-      setMain(`<div class="alert alert-error">${escHtml(e.message)}</div>`);
+      setMain(`<h2 class="section-title">Evaluation Sessions</h2>
+               <div class="alert alert-error">${escHtml(e.message)}</div>`);
     }
   },
 
-  async refresh() {
-    if (App.currentTab !== 'evaluate') return;
-    const [session, progress] = await Promise.all([
-      api('sessions', 'active').catch(() => null),
-      this.session ? fetch(`api/sessions.php?action=progress&session_id=${this.session.id}`).then(r => r.json()) : Promise.resolve([])
-    ]);
-    this.session  = session;
-    this.progress = progress || [];
-    if (session) { this.renderActive(); }
-    else { clearInterval(App.pollTimer); this.renderSetup(); }
-  },
-
-  renderSetup() {
-    const opts = this.divisions.map(d => `<option value="${d.id}">${escHtml(d.name)} (${d.player_count} players)</option>`).join('');
-    setMain(`
-      <h2 class="section-title">Evaluation Session</h2>
-      <div class="card card-pad" style="max-width:460px">
-        <p class="text-muted text-sm mb16">Start a session for a division. Coaches will score each player on all configured skills.</p>
-        <div class="field-group">
-          <label class="field-label">Select Division</label>
-          <select id="eval-div"><option value="">-- Choose Division --</option>${opts}</select>
-        </div>
-        <div id="eval-alert"></div>
-        <button class="btn btn-primary mt12" onclick="Evaluate.start()">▶ Start Evaluation Session</button>
-      </div>`);
-  },
-
-  async start() {
-    const divId = document.getElementById('eval-div').value;
-    if (!divId) return showAlert('eval-alert', 'Please select a division');
-    try {
-      await api('sessions', 'start', { division_id: divId });
-      this.load();
-    } catch (e) { showAlert('eval-alert', e.message); }
-  },
-
-  renderActive() {
-    const s = this.session;
-
-    // Build progress map: player_id -> skill_index -> avg score
-    const pmap = {};
-    (this.progress || []).forEach(row => {
-      if (!pmap[row.player_id]) pmap[row.player_id] = {};
-      pmap[row.player_id][row.skill_index] = parseFloat(row.avg_score).toFixed(1);
-    });
-
-    const rows = this.players.map(p => {
-      const cells = this.skills.map((sk, si) => {
-        const sc = pmap[p.id]?.[si];
-        return `<td class="center">${sc ? `<span class="score-val ${scoreClass(sc)}">${sc}</span>` : '<span class="score-none">—</span>'}</td>`;
-      }).join('');
-      return `<tr><td><span style="color:var(--blue);font-size:12px;font-weight:700">#${playerNumber(p.id)}</span> ${escHtml(p.name)}</td>${cells}</tr>`;
-    }).join('');
-
-    const skillHeaders = this.skills.map(sk => `<th class="center">${sk}</th>`).join('');
+  render(sessions) {
+    const rows = sessions.length
+      ? sessions.map(s => {
+          const statusBadge = s.active == 1
+            ? `<span class="badge-open">Open</span>`
+            : `<span class="badge-closed">Closed</span>`;
+          const created  = new Date(s.started_at).toLocaleDateString();
+          const ended    = s.ended_at ? new Date(s.ended_at).toLocaleDateString() : '—';
+          const lastAct  = s.last_activity ? new Date(s.last_activity).toLocaleDateString() : '—';
+          const closeBtn = s.active == 1
+            ? `<button class="btn btn-sm btn-danger" onclick="Sessions.close(${s.id})">Close</button>`
+            : '';
+          return `<tr>
+            <td><strong>${escHtml(s.name)}</strong></td>
+            <td>${statusBadge}</td>
+            <td class="center text-sm">${created}</td>
+            <td class="center text-sm">${ended}</td>
+            <td class="center text-sm">${s.total_scores}</td>
+            <td class="center text-sm">${s.coach_count}</td>
+            <td class="center text-sm">${s.player_count}</td>
+            <td class="center text-sm">${lastAct}</td>
+            <td>${closeBtn}</td>
+          </tr>`;
+        }).join('')
+      : `<tr class="empty-row"><td colspan="9">No sessions yet. Create one to get started.</td></tr>`;
 
     setMain(`
-      <h2 class="section-title">Evaluation Session</h2>
-      <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
-        <div class="session-banner" style="flex:1;margin-bottom:0">
-          <p class="session-title">🟢 Active — ${escHtml(s.division_name)}</p>
-          <p class="session-sub">Coaches can score any skill freely</p>
+      <h2 class="section-title">Evaluation Sessions</h2>
+      <div class="card card-pad mb16" style="max-width:480px">
+        <p class="text-muted text-sm mb12" style="text-transform:uppercase;letter-spacing:.1em">New Session</p>
+        <div class="form-row">
+          <div class="grow">
+            <input id="session-name" placeholder="e.g. Spring Tryouts 2026" maxlength="100" />
+          </div>
+          <button class="btn btn-primary" onclick="Sessions.create()">＋ Create</button>
         </div>
-        <button class="btn" style="background:var(--red-dim);border:1px solid var(--red);color:var(--red);white-space:nowrap" onclick="Evaluate.end()">■ End Session</button>
+        <div id="sessions-alert" class="mt8"></div>
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Player</th>${skillHeaders}</tr></thead>
-          <tbody>${rows || '<tr class="empty-row"><td colspan="5">No players in this division.</td></tr>'}</tbody>
+          <thead>
+            <tr>
+              <th>Name</th><th>Status</th>
+              <th class="center">Created</th><th class="center">Closed</th>
+              <th class="center">Scores</th><th class="center">Coaches</th>
+              <th class="center">Players</th><th class="center">Last Activity</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
         </table>
       </div>`);
   },
 
-  async end() {
-    if (!confirm('End the current evaluation session?')) return;
-    clearInterval(App.pollTimer);
-    await api('sessions', 'end');
-    this.session = null;
-    this.load();
+  async create() {
+    const nameEl = document.getElementById('session-name');
+    const name = nameEl.value.trim();
+    if (!name) return showAlert('sessions-alert', 'Please enter a session name');
+    try {
+      await api('sessions', 'create', { name });
+      nameEl.value = '';
+      this.load();
+    } catch (e) { showAlert('sessions-alert', e.message); }
+  },
+
+  async close(id) {
+    if (!confirm('Close this session? Scores are preserved but no new scores can be added.')) return;
+    try {
+      await api('sessions', 'end', { session_id: id });
+      this.load();
+    } catch (e) { alert(e.message); }
   }
 };
 
 // ─── EVALUATE (Coach view) ────────────────────────────────────────────────────
 const CoachEvaluate = {
   session: null,
+  openSessions: [],        // array of open sessions for the league
+  divisionId: null,        // division the coach selected
+  divisions: [],           // available divisions for picker
   players: [],
   allScores: {},           // { skillIndex: { playerId: score } }
   scoredSet: new Set(),    // player IDs scored for selectedSkillIndex
@@ -1463,32 +1441,72 @@ const CoachEvaluate = {
   async load() {
     setMain(`<div class="no-session"><div class="big-icon">⚾</div><p class="text-muted">Loading…</p></div>`);
 
-    let session, players, allScoresRaw;
+    let players, allScoresRaw;
 
     if (navigator.onLine) {
-      session = await api('sessions', 'active').catch(() => null);
-      if (session) {
-        players      = await fetch(`api/players.php?action=list&division_id=${session.division_id}`).then(r => r.json());
-        allScoresRaw = await fetch(`api/evaluations.php?action=my_all_scores&session_id=${session.id}`).then(r => r.json());
-        // Cache for offline use
-        await OfflineDB.kvSet('session', session);
-        await OfflineDB.kvSet('players', players);
-        await OfflineDB.kvSet('scores',  allScoresRaw);
+      const raw = await api('sessions', 'active').catch(() => []);
+      this.openSessions = Array.isArray(raw) ? raw : (raw ? [raw] : []);
+      await OfflineDB.kvSet('openSessions', this.openSessions);
+    } else {
+      this.openSessions = await OfflineDB.kvGet('openSessions') || [];
+    }
+
+    // No open sessions
+    if (!this.openSessions.length) {
+      this.session = null;
+      this.renderNoSession();
+      return;
+    }
+
+    // Auto-select if only one; otherwise show picker
+    if (!this.session) {
+      if (this.openSessions.length === 1) {
+        this.session = this.openSessions[0];
+      } else {
+        this.renderSessionPicker();
+        return;
       }
     } else {
-      session      = await OfflineDB.kvGet('session');
+      // Re-validate session is still open
+      const stillOpen = this.openSessions.find(s => s.id === this.session.id);
+      if (!stillOpen) { this.session = null; this.renderNoSession(); return; }
+      this.session = stillOpen;
+    }
+
+    // Need a division
+    if (!this.divisionId) {
+      if (navigator.onLine) {
+        this.divisions = await api('divisions', 'list').catch(() => []);
+      }
+      this.renderDivisionPicker();
+      return;
+    }
+
+    // Load players + scores
+    if (navigator.onLine) {
+      players      = await fetch(`api/players.php?action=list&division_id=${this.divisionId}`).then(r => r.json());
+      allScoresRaw = await fetch(`api/evaluations.php?action=my_all_scores&session_id=${this.session.id}`).then(r => r.json());
+      await OfflineDB.kvSet('session', this.session);
+      await OfflineDB.kvSet('players', players);
+      await OfflineDB.kvSet('scores',  allScoresRaw);
+    } else {
       players      = await OfflineDB.kvGet('players') || [];
       allScoresRaw = await OfflineDB.kvGet('scores')  || [];
     }
 
-    this.session = session;
-    if (!session) { this.renderNoSession(); return; }
-    if (!players.length) { this.renderNoSession(); return; }
+    if (!players.length) {
+      setMain(`<div class="no-session"><div class="big-icon">⚾</div>
+        <h2 style="color:var(--dim)">No players in this division</h2>
+        <p class="text-muted mt8">Ask your league admin to add players.</p>
+        <button class="btn btn-secondary mt16" onclick="CoachEvaluate.changeDivision()">← Change Division</button>
+      </div>`);
+      return;
+    }
 
     this.players = players;
     this.skills  = await LeagueSkills.get();
 
-    // Build allScores from cached raw rows + anything in the local queue
+    // Build allScores from server rows + local queue
     this.allScores = {};
     (allScoresRaw || []).forEach(r => {
       const si = parseInt(r.skill_index), pid = parseInt(r.player_id);
@@ -1496,9 +1514,8 @@ const CoachEvaluate = {
       this.allScores[si][pid] = parseInt(r.score);
     });
 
-    // Merge local queue into allScores so UI reflects pending scores
     const queue = await OfflineDB.getQueue();
-    queue.filter(q => q.session_id === session.id).forEach(q => {
+    queue.filter(q => q.session_id === this.session.id).forEach(q => {
       if (!this.allScores[q.skill_index]) this.allScores[q.skill_index] = {};
       this.allScores[q.skill_index][q.player_id] = q.score;
     });
@@ -1515,6 +1532,77 @@ const CoachEvaluate = {
     }
 
     await Sync.refreshUI();
+  },
+
+  renderSessionPicker() {
+    const items = this.openSessions.map(s => `
+      <div class="league-card" style="cursor:pointer" onclick="CoachEvaluate.selectSession(${s.id})">
+        <div class="league-icon">📋</div>
+        <div class="league-card-info">
+          <div class="league-name">${escHtml(s.name)}</div>
+          <div class="text-xs text-dim">Opened ${new Date(s.started_at).toLocaleDateString()}</div>
+        </div>
+        <div class="league-card-actions"><button class="btn btn-sm btn-primary">Select →</button></div>
+      </div>`).join('');
+    setMain(`
+      <div style="max-width:460px;margin:0 auto;padding-top:24px">
+        <h2 class="section-title">Choose a Session</h2>
+        <p class="text-muted text-sm mb16">Multiple sessions are open — pick one to score.</p>
+        <div class="league-list">${items}</div>
+      </div>`);
+  },
+
+  selectSession(id) {
+    this.session    = this.openSessions.find(s => s.id === id) || null;
+    this.divisionId = null;
+    this.divisions  = [];
+    this.load();
+  },
+
+  renderDivisionPicker() {
+    const items = this.divisions.map(d => `
+      <div class="league-card" style="cursor:pointer" onclick="CoachEvaluate.selectDivision(${d.id})">
+        <div class="league-icon">⬡</div>
+        <div class="league-card-info">
+          <div class="league-name">${escHtml(d.name)}</div>
+          ${d.player_count ? `<div class="text-xs text-dim">${d.player_count} players</div>` : ''}
+        </div>
+        <div class="league-card-actions"><button class="btn btn-sm btn-primary">Evaluate →</button></div>
+      </div>`).join('');
+
+    const sessionBanner = this.session ? `
+      <div class="session-banner mb16">
+        <p class="session-title">📋 ${escHtml(this.session.name)}</p>
+        <p class="session-sub">Select a division to begin scoring</p>
+      </div>` : '';
+
+    setMain(`
+      <div style="max-width:460px;margin:0 auto;padding-top:24px">
+        ${sessionBanner}
+        <h2 class="section-title">Choose a Division</h2>
+        <div class="league-list">${items.length ? items : '<p class="text-muted">No divisions configured.</p>'}</div>
+        ${this.openSessions.length > 1
+          ? `<button class="btn btn-secondary mt16" onclick="CoachEvaluate.changeSession()">← Change Session</button>`
+          : ''}
+      </div>`);
+  },
+
+  selectDivision(id) {
+    this.divisionId = id;
+    this.load();
+  },
+
+  changeDivision() {
+    this.divisionId = null;
+    this.players    = [];
+    this.allScores  = {};
+    this.load();
+  },
+
+  changeSession() {
+    this.session    = null;
+    this.divisionId = null;
+    this.load();
   },
 
   buildScoredSet() {
@@ -1542,7 +1630,7 @@ const CoachEvaluate = {
     if (this.localPlayerIndex > 0) {
       this.localPlayerIndex--;
       const pid = this.players[this.localPlayerIndex].id;
-      this.selectedScore = this.allScores[this.session.current_skill_index]?.[pid] ?? null;
+      this.selectedScore = this.allScores[this.selectedSkillIndex]?.[pid] ?? null;
       this.render();
     }
   },
@@ -1551,16 +1639,18 @@ const CoachEvaluate = {
     if (this.localPlayerIndex < this.players.length - 1) {
       this.localPlayerIndex++;
       const pid = this.players[this.localPlayerIndex].id;
-      this.selectedScore = this.allScores[this.session.current_skill_index]?.[pid] ?? null;
+      this.selectedScore = this.allScores[this.selectedSkillIndex]?.[pid] ?? null;
       this.render();
     }
   },
 
   async poll() {
     if (App.currentTab !== 'evaluate' || !navigator.onLine) return;
-    const session = await api('sessions', 'active').catch(() => null);
-    if (!session) { clearInterval(App.pollTimer); this.renderNoSession(); return; }
-    this.session = session;
+    const raw = await api('sessions', 'active').catch(() => []);
+    const arr = Array.isArray(raw) ? raw : (raw ? [raw] : []);
+    this.openSessions = arr;
+    const stillOpen = this.session && arr.find(s => s.id === this.session.id);
+    if (!stillOpen) { clearInterval(App.pollTimer); this.session = null; this.renderNoSession(); }
   },
 
   // ── Skill progress bar — all skills clickable ──
@@ -1640,7 +1730,7 @@ const CoachEvaluate = {
   jumpToPlayer(i) {
     this.localPlayerIndex = i;
     const pid = this.players[i].id;
-    this.selectedScore = this.allScores[this.session.current_skill_index]?.[pid] ?? null;
+    this.selectedScore = this.allScores[this.selectedSkillIndex]?.[pid] ?? null;
     this.mode = 'evaluate';
     this.render();
   },
@@ -1663,6 +1753,10 @@ const CoachEvaluate = {
 
     setMain(`
       <div class="eval-screen">
+        <div class="eval-header-info">
+          <span class="session-chip">📋 ${escHtml(this.session.name)}</span>
+          <button class="btn-link" onclick="CoachEvaluate.changeDivision()">Change Division</button>
+        </div>
         <div class="skill-progress">${this.skillStepsHtml()}</div>
         ${!navigator.onLine ? '<div class="offline-notice">Offline — scores saving locally</div>' : ''}
         <div class="player-search-wrap">
@@ -1790,8 +1884,10 @@ const CoachEvaluate = {
     setMain(`
       <div class="no-session">
         <div class="big-icon">⚾</div>
-        <h2 style="color:var(--dim)">No active evaluation session</h2>
-        <p class="text-muted mt8">Wait for the administrator to start a session.</p>
+        <h2 style="color:var(--dim)">No Open Sessions</h2>
+        <p class="text-muted mt8">There are no evaluation sessions open right now.</p>
+        <p class="text-muted mt4">Ask your league admin to create one.</p>
+        <button class="btn btn-secondary mt16" onclick="CoachEvaluate.load()">↻ Refresh</button>
       </div>`);
   },
 
@@ -1893,7 +1989,9 @@ const CoachEvaluate = {
 // ─── RESULTS ──────────────────────────────────────────────────────────────────
 const Results = {
   divisions: [],
+  sessions: [],
   filterDiv: 'all',
+  filterSession: null,
   isAdmin: false,
   skills: [],
 
@@ -1901,10 +1999,15 @@ const Results = {
     this.isAdmin = App.user.is_admin;
     setMain(`<h2 class="section-title">${this.isAdmin ? 'All Results' : 'My Evaluations'}</h2><div class="spinner"></div>`);
     try {
-      [this.divisions, this.skills] = await Promise.all([
+      [this.divisions, this.skills, this.sessions] = await Promise.all([
         api('divisions', 'list'),
-        LeagueSkills.get()
+        LeagueSkills.get(),
+        fetch('api/sessions.php?action=list_for_filter').then(r => r.json()).catch(() => [])
       ]);
+      // Default to most recent session on first load
+      if (this.filterSession === null && this.sessions.length) {
+        this.filterSession = this.sessions[0].id;
+      }
       await this.render();
     } catch (e) {
       setMain(`<h2 class="section-title">${this.isAdmin ? 'All Results' : 'My Evaluations'}</h2><div class="alert alert-error">${escHtml(e.message)}</div>`);
@@ -1914,6 +2017,7 @@ const Results = {
   async render() {
     let url = `api/evaluations.php?action=results`;
     if (this.filterDiv !== 'all') url += `&division_id=${this.filterDiv}`;
+    if (this.filterSession)       url += `&session_id=${this.filterSession}`;
     const rows = await fetch(url).then(r => r.json());
 
     // Group by player
@@ -1967,8 +2071,17 @@ const Results = {
         }).join('')
       : `<tr class="empty-row"><td colspan="${4 + this.skills.length}">No results yet.</td></tr>`;
 
+    const sessionPills = [
+      `<button class="filter-pill ${!this.filterSession ? 'active' : ''}" onclick="Results.filterBySession(null)">All Time</button>`,
+      ...this.sessions.map(s =>
+        `<button class="filter-pill ${this.filterSession == s.id ? 'active' : ''}" onclick="Results.filterBySession(${s.id})">
+          ${escHtml(s.name)}${s.active == 1 ? ' 🟢' : ''}
+        </button>`)
+    ].join('');
+
     setMain(`
       <h2 class="section-title">${this.isAdmin ? 'All Results' : 'My Evaluations'}</h2>
+      ${this.sessions.length ? `<div class="filter-bar" style="margin-bottom:8px"><span class="text-sm text-muted" style="line-height:32px;margin-right:4px">Session:</span>${sessionPills}</div>` : ''}
       <div class="filter-bar">${filterBtns}</div>
       <div class="table-wrap">
         <table>
@@ -1986,6 +2099,11 @@ const Results = {
 
   filterBy(divId) {
     this.filterDiv = divId;
+    this.render();
+  },
+
+  filterBySession(sessionId) {
+    this.filterSession = sessionId;
     this.render();
   }
 };
@@ -2020,14 +2138,6 @@ const Demo = {
   }
 };
 
-// ─── Route evaluate tab based on role ────────────────────────────────────────
-const Evaluate_orig = Evaluate;
-const EvaluateRouter = {
-  load() {
-    if (App.user.is_admin) Evaluate_orig.load();
-    else CoachEvaluate.load();
-  }
-};
 
 // ─── Helper: show alert ───────────────────────────────────────────────────────
 function showAlert(targetId, msg, type = 'error') {
@@ -2039,7 +2149,7 @@ function showAlert(targetId, msg, type = 'error') {
   setTimeout(() => { el.classList.add('hidden'); }, 4000);
 }
 
-// ─── Override switchTab to route evaluate ─────────────────────────────────────
+// ─── Override switchTab to add eval-mode CSS toggle ───────────────────────────
 App.switchTab = function(tab) {
   clearInterval(this.pollTimer);
   this.currentTab = tab;
@@ -2053,7 +2163,8 @@ App.switchTab = function(tab) {
     players:   Players,
     coaches:   Coaches,
     skills:    Skills,
-    evaluate:  EvaluateRouter,
+    sessions:  Sessions,
+    evaluate:  CoachEvaluate,
     results:   Results
   };
   views[tab]?.load();

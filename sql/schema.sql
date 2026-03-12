@@ -59,16 +59,15 @@ CREATE TABLE IF NOT EXISTS players (
 
 -- Evaluation Sessions
 CREATE TABLE IF NOT EXISTS eval_sessions (
-    id                  INT AUTO_INCREMENT PRIMARY KEY,
-    division_id         INT NOT NULL,
-    league_id           INT NOT NULL,
-    current_skill_index INT DEFAULT 0,
-    current_player_index INT DEFAULT 0,
-    active              TINYINT(1) DEFAULT 1,
-    started_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    ended_at            TIMESTAMP NULL,
-    FOREIGN KEY (division_id) REFERENCES divisions(id),
-    FOREIGN KEY (league_id) REFERENCES leagues(id) ON DELETE CASCADE
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    name        VARCHAR(100) NOT NULL DEFAULT '',
+    league_id   INT NOT NULL,
+    division_id INT NULL,
+    active      TINYINT(1) DEFAULT 1,
+    started_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    ended_at    TIMESTAMP NULL,
+    FOREIGN KEY (division_id) REFERENCES divisions(id) ON DELETE SET NULL,
+    FOREIGN KEY (league_id)   REFERENCES leagues(id) ON DELETE CASCADE
 );
 
 -- Evaluations (individual scores)

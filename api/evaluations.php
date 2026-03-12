@@ -83,6 +83,7 @@ switch ($action) {
 
         $isAdmin    = (bool)$coach['is_admin'];
         $divisionId = isset($_GET['division_id']) ? (int)$_GET['division_id'] : null;
+        $sessionId  = isset($_GET['session_id'])  ? (int)$_GET['session_id']  : null;
 
         $where  = ['1=1'];
         $params = [];
@@ -100,6 +101,11 @@ switch ($action) {
         if ($leagueId !== null) {
             $where[]  = 'd.league_id = ?';
             $params[] = $leagueId;
+        }
+
+        if ($sessionId) {
+            $where[]  = 'e.session_id = ?';
+            $params[] = $sessionId;
         }
 
         $whereStr = implode(' AND ', $where);
