@@ -506,21 +506,27 @@ tr:hover td { background: var(--blue-dim); }
 /* ── MOBILE ──────────────────────────────────────── */
 @media (max-width: 768px) {
 
+  /* Flex column: content fills space, nav sits naturally at the bottom.
+     No fixed positioning = no overlap, no padding calculations needed. */
   .main-layout { flex-direction: column; }
+
+  .content-wrap { order: 1; flex: 1; min-height: 0; }
+
   .sidebar {
-    position: fixed; bottom: 0; left: 0; right: 0;
+    order: 2;
+    flex-shrink: 0;
+    position: static;
     width: 100%;
-    height: calc(52px + env(safe-area-inset-bottom));
-    padding-bottom: env(safe-area-inset-bottom);
     display: flex; flex-direction: row; align-items: stretch;
     overflow-x: auto; overflow-y: hidden;
     scrollbar-width: none;
-    padding-left: 0; padding-right: 0; padding-top: 0;
+    padding: 0 0 env(safe-area-inset-bottom) 0;
     border-right: none; border-top: 1px solid var(--border);
-    z-index: 200; background: var(--bg2);
+    background: var(--bg2);
     box-shadow: 0 -1px 0 var(--border), 0 -4px 12px rgba(0,0,0,0.04);
   }
   .sidebar::-webkit-scrollbar { display: none; }
+
   .nav-btn {
     flex: 1 0 52px; flex-direction: column;
     align-items: center; justify-content: center;
@@ -532,14 +538,14 @@ tr:hover td { background: var(--blue-dim); }
   }
   .nav-icon { font-size: 20px; line-height: 1; width: auto; }
 
-  /* Few tabs (coach view): pill buttons on page-colored bar so safe area blends in */
+  /* Few tabs (coach view): pill buttons */
   .sidebar-few {
     height: auto !important;
     display: flex; flex-direction: row;
     align-items: center; justify-content: center;
     gap: 10px;
-    padding: 4px 20px !important;
-    padding-bottom: calc(env(safe-area-inset-bottom) + 6px) !important;
+    padding: 8px 20px !important;
+    padding-bottom: calc(env(safe-area-inset-bottom) + 8px) !important;
     background: var(--bg) !important;
     border-top: 1px solid var(--border) !important;
     box-shadow: none !important;
@@ -570,16 +576,14 @@ tr:hover td { background: var(--blue-dim); }
     color: var(--blue);
   }
 
-  .content { padding: 16px 16px calc(52px + env(safe-area-inset-bottom) + 8px); }
+  /* No padding-bottom hack needed — nav is in the flex flow below content */
+  .content { padding: 16px; background: var(--bg); border-radius: 0; }
   .content.eval-mode { overflow: hidden; padding: 0; }
 
-  /* Match body/page background to nav bar so no colour mismatch at bottom */
-  body { background: var(--bg2); }
-  .content { background: var(--bg); border-radius: 0; }
-
+  /* eval-screen fills its parent exactly — no nav overlap possible */
   .eval-screen {
     position: static; height: 100%;
-    padding: 12px 16px calc(52px + env(safe-area-inset-bottom) + 16px);
+    padding: 12px 16px 8px;
     box-sizing: border-box; overflow: hidden;
   }
 
