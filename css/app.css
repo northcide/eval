@@ -680,7 +680,6 @@ tr:hover td { background: var(--blue-dim); }
   .badge-admin { font-size: 9px; padding: 2px 6px; margin-left: 6px; }
   .welcome-text { display: none; }
   .btn-logout { padding: 5px 10px; font-size: 12px; }
-  .manage-banner { display: none; }
 
   .login-wrap { align-items: flex-start; padding-top: 40px; }
   .login-box { width: 100%; padding: 0 20px; }
@@ -748,12 +747,7 @@ tr:hover td { background: var(--blue-dim); }
 
 /* ── Manage mode banner ──────────────────────────────────────────────────────── */
 .content-wrap { display: flex; flex-direction: column; flex: 1; min-width: 0; overflow: hidden; }
-.manage-banner {
-  display: flex; align-items: center; justify-content: space-between;
-  background: #eff6ff; border-bottom: 1px solid #bfdbfe;
-  padding: 8px 20px; font-size: 13px; color: #1e40af; font-weight: 500;
-  flex-shrink: 0;
-}
+.manage-banner { display: none; }
 .manage-exit-btn {
   background: none; border: 1px solid #93c5fd; color: #1e40af;
   padding: 4px 12px; border-radius: 8px; cursor: pointer;
