@@ -525,8 +525,10 @@ tr:hover td { background: var(--blue-dim); }
 .eval-screen .score-grid     { margin-bottom: 0; }
 
 /* Compact horizontal player card (mobile) */
-.eval-player-card {
+.eval-player-card,
+.eval-screen .eval-player-card {
   display: flex; flex-direction: row; align-items: center;
+  justify-content: unset;
   gap: 4px; padding: 8px 16px; margin-bottom: 0;
 }
 .eval-player-info {
