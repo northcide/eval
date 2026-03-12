@@ -594,6 +594,12 @@ const Leagues = {
       this._page = 0;
       this.render();
     } catch (e) {
+      // If the leagues API fails (e.g. single-league setup without leagues table),
+      // admins can go straight to the admin panel without the manage-mode flow
+      if (App.user.is_admin) {
+        App.enterManageMode({ id: App.user.league_id ?? 0, name: 'Admin Panel' });
+        return;
+      }
       setMain(`<h2 class="section-title">${title}</h2><div class="alert alert-error">${escHtml(e.message)}</div>`);
     }
   },
