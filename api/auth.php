@@ -26,54 +26,58 @@ switch ($action) {
         // Build list of all leagues this coach belongs to
         $leagues = [];
 
+        // Superadmin (no league) — set session immediately, skip league lookups
         if ($coach['league_id'] === null && $coach['is_admin']) {
-            // Superadmin — no league selection needed
-        } elseif ($coach['league_id'] !== null) {
-            // Native league
-            $lStmt = $db->prepare("SELECT l.id, l.name FROM leagues l WHERE l.id = ?");
-            $lStmt->execute([$coach['league_id']]);
-            $homeLeague = $lStmt->fetch();
-            if ($homeLeague) {
-                $leagues[] = [
-                    'id'       => (int)$homeLeague['id'],
-                    'name'     => $homeLeague['name'],
-                    'is_admin' => (bool)$coach['is_admin'],
-                    'native'   => true,
-                ];
-            }
-        }
-
-        // Guest leagues via coach_leagues
-        $clStmt = $db->prepare("
-            SELECT l.id, l.name, cl.is_admin
-            FROM coach_leagues cl
-            JOIN leagues l ON l.id = cl.league_id
-            WHERE cl.coach_id = ?
-        ");
-        $clStmt->execute([$coach['id']]);
-        foreach ($clStmt->fetchAll() as $row) {
-            $already = array_filter($leagues, fn($x) => $x['id'] === (int)$row['id']);
-            if (!$already) {
-                $leagues[] = [
-                    'id'       => (int)$row['id'],
-                    'name'     => $row['name'],
-                    'is_admin' => (bool)$row['is_admin'],
-                    'native'   => false,
-                ];
-            }
-        }
-
-        if ($coach['league_id'] === null && $coach['is_admin']) {
-            // Superadmin — set session immediately
             $_SESSION['coach'] = [
                 'id'        => (int)$coach['id'],
                 'name'      => $coach['name'],
-                'email'     => $coach['email'],
+                'email'     => $coach['email'] ?? null,
                 'is_admin'  => true,
                 'league_id' => null,
             ];
             jsonResponse(['success' => true, 'coach' => $_SESSION['coach']]);
-        } elseif (count($leagues) === 1) {
+        }
+
+        // Native league membership
+        if ($coach['league_id'] !== null) {
+            try {
+                $lStmt = $db->prepare("SELECT l.id, l.name FROM leagues l WHERE l.id = ?");
+                $lStmt->execute([$coach['league_id']]);
+                $homeLeague = $lStmt->fetch();
+                if ($homeLeague) {
+                    $leagues[] = [
+                        'id'       => (int)$homeLeague['id'],
+                        'name'     => $homeLeague['name'],
+                        'is_admin' => (bool)$coach['is_admin'],
+                        'native'   => true,
+                    ];
+                }
+            } catch (PDOException $e) { /* leagues table may not exist */ }
+        }
+
+        // Guest leagues via coach_leagues (optional table)
+        try {
+            $clStmt = $db->prepare("
+                SELECT l.id, l.name, cl.is_admin
+                FROM coach_leagues cl
+                JOIN leagues l ON l.id = cl.league_id
+                WHERE cl.coach_id = ?
+            ");
+            $clStmt->execute([$coach['id']]);
+            foreach ($clStmt->fetchAll() as $row) {
+                $already = array_filter($leagues, fn($x) => $x['id'] === (int)$row['id']);
+                if (!$already) {
+                    $leagues[] = [
+                        'id'       => (int)$row['id'],
+                        'name'     => $row['name'],
+                        'is_admin' => (bool)$row['is_admin'],
+                        'native'   => false,
+                    ];
+                }
+            }
+        } catch (PDOException $e) { /* coach_leagues table may not exist */ }
+
+        if (count($leagues) === 1) {
             // Single league — set session immediately
             $_SESSION['coach'] = [
                 'id'        => (int)$coach['id'],
