@@ -305,11 +305,23 @@ const App = {
           </div>
         </div>
         <div class="header-right">
-          <span class="welcome-text">Welcome, <span>${escHtml(this.user.name)}</span></span>
           <span id="offline-badge" class="offline-badge" hidden>Offline</span>
           <button id="sync-btn" class="sync-btn" hidden onclick="Sync.upload()"><span id="sync-count"></span></button>
-          <button class="btn-logout" onclick="ChangePassword.show()">🔑 Password</button>
-          <button class="btn-logout" onclick="App.doLogout()">Sign Out</button>
+          <div class="header-menu-wrap" id="header-menu-wrap">
+            <button class="header-menu-btn" onclick="App.toggleMenu()">
+              ${escHtml(this.user.name.split(' ')[0])} <span class="header-menu-caret">▾</span>
+            </button>
+            <div class="header-menu-drop" id="header-menu-drop" hidden>
+              <div id="menu-manage-row" hidden>
+                <div class="menu-manage-label">Managing: <strong id="manage-league-name"></strong></div>
+                <button class="menu-item" id="menu-back-btn" onclick="App.exitManageMode();App.closeMenu()">← Back to Leagues</button>
+                <div class="menu-divider"></div>
+              </div>
+              <button class="menu-item" id="menu-switch-btn" hidden onclick="App.switchLeague();App.closeMenu()">⇄ Switch League</button>
+              <button class="menu-item" onclick="ChangePassword.show();App.closeMenu()">🔑 Change Password</button>
+              <button class="menu-item menu-item-danger" onclick="App.doLogout()">↪ Sign Out</button>
+            </div>
+          </div>
         </div>
       </div>
       <div class="main-layout">
@@ -321,7 +333,7 @@ const App = {
         </nav>
         <div class="content-wrap">
           <div id="manage-banner" class="manage-banner" hidden>
-            <span>Managing: <strong id="manage-league-name"></strong></span>
+            <span>Managing: <strong id="manage-league-name-banner"></strong></span>
             <button class="manage-exit-btn" onclick="App.exitManageMode()">← Back to Leagues</button>
           </div>
           <main class="content" id="main-content">
@@ -351,10 +363,16 @@ const App = {
       <button class="nav-btn" data-tab="${id}" onclick="App.switchTab('${id}')">
         <span class="nav-icon">${icon}</span><span>${label}</span>
       </button>`).join('');
+    const exitLabel = isLeagueAdmin ? '← Back to My League' : '← Back to Leagues';
+    // Desktop banner
     const banner = document.getElementById('manage-banner');
-    document.getElementById('manage-league-name').textContent = league.name;
-    document.querySelector('.manage-exit-btn').textContent = isLeagueAdmin ? '← Back to My League' : '← Back to Leagues';
+    document.getElementById('manage-league-name-banner').textContent = league.name;
+    document.querySelector('.manage-exit-btn').textContent = exitLabel;
     banner.hidden = false;
+    // Header dropdown
+    document.getElementById('manage-league-name').textContent = league.name;
+    document.getElementById('menu-back-btn').textContent = exitLabel;
+    document.getElementById('menu-manage-row').hidden = false;
     this.switchTab('divisions');
   },
 
@@ -368,21 +386,29 @@ const App = {
     sidebar.innerHTML = `<button class="nav-btn active" data-tab="leagues" onclick="App.switchTab('leagues')">
       <span class="nav-icon">🏆</span><span>${label}</span></button>`;
     document.getElementById('manage-banner').hidden = true;
+    document.getElementById('menu-manage-row').hidden = true;
     this.currentTab = 'leagues';
     Leagues.load();
   },
 
+  toggleMenu() {
+    const drop = document.getElementById('header-menu-drop');
+    if (!drop) return;
+    drop.hidden = !drop.hidden;
+    if (!drop.hidden) {
+      const close = (e) => { if (!document.getElementById('header-menu-wrap')?.contains(e.target)) { drop.hidden = true; document.removeEventListener('click', close); } };
+      setTimeout(() => document.addEventListener('click', close), 0);
+    }
+  },
+
+  closeMenu() {
+    const drop = document.getElementById('header-menu-drop');
+    if (drop) drop.hidden = true;
+  },
+
   _renderSwitchLeagueBtn() {
-    const existing = document.getElementById('switch-league-btn');
-    if (existing) existing.remove();
-    if (this.leagues.length <= 1) return;
-    const btn = document.createElement('button');
-    btn.id = 'switch-league-btn';
-    btn.className = 'btn-logout';
-    btn.textContent = '⇄ Switch League';
-    btn.onclick = () => this.switchLeague();
-    const headerRight = document.querySelector('.header-right');
-    if (headerRight) headerRight.insertBefore(btn, headerRight.firstChild);
+    const btn = document.getElementById('menu-switch-btn');
+    if (btn) btn.hidden = this.leagues.length <= 1;
   },
 
   async switchLeague() {
@@ -1752,11 +1778,11 @@ const CoachEvaluate = {
     }).join('');
 
     setMain(`
+      <div class="eval-topbar">
+        <span class="session-chip">📋 ${escHtml(this.session.name)}</span>
+        <button class="btn-link" onclick="CoachEvaluate.changeDivision()">Change Division</button>
+      </div>
       <div class="eval-screen">
-        <div class="eval-header-info">
-          <span class="session-chip">📋 ${escHtml(this.session.name)}</span>
-          <button class="btn-link" onclick="CoachEvaluate.changeDivision()">Change Division</button>
-        </div>
         <div class="skill-progress">${this.skillStepsHtml()}</div>
         ${!navigator.onLine ? '<div class="offline-notice">Offline — scores saving locally</div>' : ''}
         <div class="player-search-wrap">
@@ -1767,23 +1793,25 @@ const CoachEvaluate = {
             onblur="setTimeout(()=>{const d=document.getElementById('player-search-drop');if(d)d.hidden=true;},150)" />
           <div class="player-search-drop" id="player-search-drop" hidden></div>
         </div>
-        <div class="player-card">
-          <div class="player-number">#${num}</div>
-          <div class="player-name">${escHtml(player.name)}${player.is_coaches_child ? ' <span class="badge-warn">Coach\'s Child</span>' : ''}</div>
-          <p class="player-sub">${player.position !== 'Player' ? escHtml(player.position) : ''}${player.age ? `${player.position !== 'Player' ? ' • ' : ''}Age ${player.age}` : ''}</p>
-          <div class="player-nav">
-            <button class="player-nav-btn" onclick="CoachEvaluate.prevPlayer()" ${atFirst ? 'disabled' : ''}>‹</button>
-            <span class="player-nav-info">
-              ${this.localPlayerIndex + 1} of ${this.players.length}
-              ${isScored ? '<br><span class="player-nav-scored">✓ scored</span>' : ''}
-            </span>
-            <button class="player-nav-btn" onclick="CoachEvaluate.nextPlayer()" ${atLast ? 'disabled' : ''}>›</button>
+        <div class="player-card eval-player-card">
+          <button class="player-nav-btn" onclick="CoachEvaluate.prevPlayer()" ${atFirst ? 'disabled' : ''}>‹</button>
+          <div class="eval-player-info">
+            <div class="eval-player-name">
+              <span class="eval-player-num">#${num}</span>
+              ${escHtml(player.name)}${player.is_coaches_child ? ' <span class="badge-warn">Coach\'s Child</span>' : ''}
+            </div>
+            <div class="eval-player-meta">${[
+              player.position !== 'Player' ? escHtml(player.position) : '',
+              player.age ? `Age ${player.age}` : '',
+              `${this.localPlayerIndex + 1} / ${this.players.length}`,
+              `${remaining} left`
+            ].filter(Boolean).join(' · ')}${isScored ? ' <span class="player-nav-scored">✓</span>' : ''}</div>
+            <div><span class="skill-label">${skill.toUpperCase()}</span></div>
           </div>
-          <p class="player-count">${remaining} remaining</p>
-          <div><span class="skill-label">${skill.toUpperCase()}</span></div>
+          <button class="player-nav-btn" onclick="CoachEvaluate.nextPlayer()" ${atLast ? 'disabled' : ''}>›</button>
         </div>
         <div class="card card-pad">
-          <p class="text-muted text-sm mb16" style="text-align:center;text-transform:uppercase;letter-spacing:.1em">Tap to score: ${skill}</p>
+          <p class="score-prompt">Tap to score: ${skill}</p>
           <div class="score-grid">${scoreButtons}</div>
         </div>
       </div>`);

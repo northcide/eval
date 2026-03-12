@@ -52,7 +52,7 @@ body {
   padding: 16px 10px; flex-shrink: 0;
 }
 .content { flex: 1; min-height: 0; padding: 32px; overflow-y: auto; }
-.content.eval-mode { overflow: hidden; padding: 0; }
+.content.eval-mode { overflow: hidden; padding: 0; display: flex; flex-direction: column; }
 
 /* ── Header ─────────────────────────────────────── */
 .header {
@@ -187,6 +187,38 @@ select option { background: var(--bg2); }
   display: flex; align-items: center; gap: 6px; transition: all 0.12s;
 }
 .btn-logout:hover { border-color: var(--border2); color: var(--text); background: var(--bg4); }
+
+/* ── Header dropdown menu ────────────────────────── */
+.header-menu-wrap { position: relative; }
+.header-menu-btn {
+  background: none; border: 1px solid var(--border2); color: var(--text);
+  padding: 5px 11px; border-radius: 8px; cursor: pointer;
+  font-size: 13px; font-family: inherit; font-weight: 600;
+  display: flex; align-items: center; gap: 4px; transition: all 0.12s;
+}
+.header-menu-btn:hover { background: var(--bg4); }
+.header-menu-caret { color: var(--muted); font-size: 10px; }
+.header-menu-drop {
+  position: absolute; top: calc(100% + 6px); right: 0;
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+  min-width: 200px; z-index: 1000;
+  padding: 5px;
+}
+.menu-item {
+  display: block; width: 100%; background: none; border: none;
+  text-align: left; padding: 8px 11px; border-radius: 7px;
+  cursor: pointer; font-family: inherit; font-size: 13px;
+  color: var(--text); font-weight: 500;
+}
+.menu-item:hover { background: var(--bg4); }
+.menu-item-danger { color: var(--red); }
+.menu-item-danger:hover { background: var(--red-dim); }
+.menu-manage-label {
+  font-size: 11px; color: var(--muted); padding: 4px 11px 2px;
+  font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+}
+.menu-divider { height: 1px; background: var(--border); margin: 4px 0; }
 .btn-full { width: 100%; justify-content: center; }
 .btn-sm   { padding: 6px 13px; font-size: 13px; }
 .btn-demo { background: none; color: var(--orange); border: 1px solid rgba(217,119,6,0.3); }
@@ -462,12 +494,22 @@ tr:hover td { background: var(--blue-dim); }
 .psr-check { color: var(--green); font-size: 12px; flex-shrink: 0; }
 .psr-empty { padding: 10px 12px; color: var(--dim); font-size: 13px; }
 
-/* ── Evaluate screen — no-scroll flex layout ────── */
+/* ── Evaluate topbar (session + division info above eval-screen) ── */
+.eval-topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg2);
+  flex-shrink: 0;
+}
+
+/* ── Evaluate screen — fills remaining space after eval-topbar ── */
 .eval-screen {
   display: flex; flex-direction: column; gap: 10px;
-  height: calc(100svh - 60px - env(safe-area-inset-top) - 64px);
+  flex: 1; min-height: 0; overflow: hidden;
 }
 .eval-screen .skill-progress { margin-bottom: 0; flex-shrink: 0; }
+/* Desktop eval player card — vertical centered */
 .eval-screen .player-card {
   flex: 1; min-height: 0; margin-bottom: 0; padding: 16px 20px;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -481,6 +523,32 @@ tr:hover td { background: var(--blue-dim); }
 .eval-screen .card           { flex-shrink: 0; }
 .eval-screen .card-pad       { padding: 14px 16px; }
 .eval-screen .score-grid     { margin-bottom: 0; }
+
+/* Compact horizontal player card (mobile) */
+.eval-player-card {
+  display: flex; flex-direction: row; align-items: center;
+  gap: 4px; padding: 12px 16px; margin-bottom: 0;
+}
+.eval-player-info {
+  flex: 1; min-width: 0; text-align: center;
+}
+.eval-player-name {
+  font-size: 16px; font-weight: 700; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  margin-bottom: 2px;
+}
+.eval-player-num {
+  font-size: 13px; font-weight: 800; color: var(--blue);
+  margin-right: 4px; font-variant-numeric: tabular-nums;
+}
+.eval-player-meta {
+  font-size: 11px; color: var(--muted); margin-bottom: 4px;
+}
+.eval-player-card .skill-label { margin-top: 2px; padding: 3px 10px; font-size: 11px; }
+.score-prompt {
+  text-align: center; text-transform: uppercase; letter-spacing: .08em;
+  font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 10px;
+}
 
 /* ── Offline indicator ───────────────────────────────── */
 .offline-badge {
@@ -538,8 +606,10 @@ tr:hover td { background: var(--blue-dim); }
   }
   .nav-icon { font-size: 20px; line-height: 1; width: auto; }
 
-  /* Few tabs (coach view): pill buttons */
+  /* Few tabs (coach view): fixed pill nav at very bottom of screen */
   .sidebar-few {
+    position: fixed !important;
+    bottom: 0; left: 0; right: 0; z-index: 200;
     height: auto !important;
     display: flex; flex-direction: row;
     align-items: center; justify-content: center;
@@ -548,7 +618,11 @@ tr:hover td { background: var(--blue-dim); }
     padding-bottom: calc(env(safe-area-inset-bottom) + 8px) !important;
     background: var(--bg) !important;
     border-top: 1px solid var(--border) !important;
-    box-shadow: none !important;
+    box-shadow: 0 -2px 12px rgba(0,0,0,0.08) !important;
+  }
+  /* Reserve space below content for fixed nav */
+  .main-layout:has(.sidebar-few) .content-wrap {
+    padding-bottom: calc(56px + env(safe-area-inset-bottom));
   }
   .sidebar-few .nav-btn {
     flex: 0 1 160px !important;
@@ -578,12 +652,24 @@ tr:hover td { background: var(--blue-dim); }
 
   /* No padding-bottom hack needed — nav is in the flex flow below content */
   .content { padding: 16px; background: var(--bg); border-radius: 0; }
-  .content.eval-mode { overflow: hidden; padding: 0; }
+  .content.eval-mode {
+    overflow: hidden; padding: 0;
+    display: flex; flex-direction: column;
+  }
 
-  /* eval-screen fills its parent exactly — no nav overlap possible */
+  /* eval-topbar sits above eval-screen, outside the scroll area */
+  .eval-topbar {
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+  }
+
+  /* eval-screen fills remaining space after topbar — no height calc needed */
   .eval-screen {
-    position: static; height: 100%;
-    padding: 12px 16px 8px;
+    position: static; flex: 1; min-height: 0;
+    padding: 10px 16px 6px;
     box-sizing: border-box; overflow: hidden;
   }
 
@@ -592,6 +678,7 @@ tr:hover td { background: var(--blue-dim); }
   .badge-admin { font-size: 9px; padding: 2px 6px; margin-left: 6px; }
   .welcome-text { display: none; }
   .btn-logout { padding: 5px 10px; font-size: 12px; }
+  .manage-banner { display: none; }
 
   .login-wrap { align-items: flex-start; padding-top: 40px; }
   .login-box { width: 100%; padding: 0 20px; }
@@ -609,9 +696,22 @@ tr:hover td { background: var(--blue-dim); }
 
   .score-grid {
     display: grid; grid-template-columns: repeat(5, 1fr);
-    gap: 8px; margin-bottom: 16px;
+    gap: 7px; margin-bottom: 0;
   }
-  .score-btn { width: 100%; height: 58px; font-size: 20px; border-radius: 10px; }
+  .score-btn { width: 100%; height: 52px; font-size: 19px; border-radius: 10px; }
+
+  /* Compact eval-screen overrides for mobile */
+  .eval-screen { gap: 8px; }
+  .eval-screen .card-pad { padding: 10px 14px; }
+  .eval-screen .score-grid { gap: 7px; }
+
+  /* Compact eval player card (horizontal strip) */
+  .eval-player-card { padding: 10px 12px; gap: 2px; }
+  .eval-player-name { font-size: 15px; }
+  .eval-player-num  { font-size: 12px; }
+  .eval-player-meta { font-size: 10px; margin-bottom: 3px; }
+  .eval-player-card .skill-label { font-size: 10px; padding: 2px 8px; margin-top: 0; }
+  .eval-player-card .player-nav-btn { width: 38px; height: 38px; font-size: 24px; }
 
   .player-card { padding: 20px 16px; margin-bottom: 14px; border-radius: 14px; }
   .player-number { font-size: 28px; margin-bottom: 8px; }
@@ -619,7 +719,7 @@ tr:hover td { background: var(--blue-dim); }
   .player-sub   { font-size: 13px; }
   .skill-label  { padding: 6px 16px; font-size: 12px; margin-top: 10px; }
 
-  .skill-progress { gap: 5px; margin-bottom: 12px; }
+  .skill-progress { gap: 5px; margin-bottom: 8px; }
   .skill-step { font-size: 10px; padding: 7px 2px; }
 
   .btn-next-mobile {
@@ -640,7 +740,7 @@ tr:hover td { background: var(--blue-dim); }
 }
 
 @media (max-width: 390px) {
-  .score-btn { height: 52px; font-size: 18px; }
+  .score-btn { height: 48px; font-size: 17px; }
   .nav-btn   { font-size: 9px; }
   .nav-icon  { font-size: 18px; }
 }
@@ -716,7 +816,6 @@ tr:hover td { background: var(--blue-dim); }
 .badge-closed { display:inline-block; padding:2px 10px; border-radius:12px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; background:var(--bg2); color:var(--dim); border:1px solid var(--border2); }
 
 /* ── Evaluate: session chip + division change ──────── */
-.eval-header-info { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; gap:8px; }
 .session-chip { font-size:12px; font-weight:600; color:var(--blue); background:rgba(67,97,238,0.08); border:1px solid var(--blue-border); border-radius:12px; padding:3px 10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .btn-link { background:none; border:none; color:var(--blue); font-size:12px; cursor:pointer; text-decoration:underline; padding:0; white-space:nowrap; }
 
