@@ -18,6 +18,24 @@ const LeagueSkills = {
   invalidate() { this._cache = null; }
 };
 
+// ─── Checkin bib cache ────────────────────────────────────────────────────────
+const CheckinCache = {
+  _bibs: {},   // { player_id: bib_number } — checked-in players only
+  _mode: 'blank',
+  async load(sessionId) {
+    try {
+      const res = await fetch(`api/checkins.php?action=session_bibs&session_id=${sessionId}`, { credentials: 'same-origin' });
+      const data = await res.json();
+      this._bibs = {};
+      (data.bibs || []).forEach(r => { this._bibs[r.player_id] = r.bib_number; });
+      this._mode = data.bib_mode || 'blank';
+    } catch { /* non-fatal — fall back to DB-ID display */ }
+  },
+  getBib(id) { return this._bibs[id] ?? null; },
+  isCheckedIn(id) { return this._bibs[id] != null; },
+  invalidate() { this._bibs = {}; }
+};
+
 // ─── Offline IndexedDB ────────────────────────────────────────────────────────
 const OfflineDB = {
   _db: null,
@@ -349,14 +367,14 @@ const App = {
     clearInterval(this.pollTimer);
     this.currentTab = tab;
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-    const views = { leagues: Leagues, divisions: Divisions, players: Players, coaches: Coaches, skills: Skills, sessions: Sessions, evaluate: CoachEvaluate, results: Results };
+    const views = { leagues: Leagues, divisions: Divisions, players: Players, coaches: Coaches, skills: Skills, sessions: Sessions, checkin: CheckIn, evaluate: CoachEvaluate, results: Results };
     views[tab]?.load();
   },
 
   enterManageMode(league) {
     this.managingLeague = league;
     const isLeagueAdmin = this.user.is_admin && this.user.league_id !== null;
-    const adminTabs = [['divisions','Divisions','⬡'],['players','Players','👤'],['coaches','Coaches','🛡'],['skills','Skills','⚙'],['sessions','Sessions','📋'],['evaluate','Evaluate','⚾'],['results','Results','📊']];
+    const adminTabs = [['divisions','Divisions','⬡'],['players','Players','👤'],['coaches','Coaches','🛡'],['skills','Skills','⚙'],['sessions','Sessions','📋'],['checkin','Check-In','🏷'],['evaluate','Evaluate','⚾'],['results','Results','📊']];
     const sidebar = document.getElementById('sidebar');
     sidebar.className = 'sidebar';
     sidebar.innerHTML = adminTabs.map(([id,label,icon]) => `
@@ -453,7 +471,8 @@ function escHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&am
 function setMain(html) { document.getElementById('main-content').innerHTML = html; }
 function scoreClass(n) { return n >= 8 ? 'score-high' : n >= 6 ? 'score-mid' : n >= 4 ? 'score-low' : 'score-poor'; }
 function playerNumber(id) {
-  return String(id).padStart(3, '0');
+  const bib = CheckinCache.getBib(id);
+  return bib != null ? String(bib).padStart(3, '0') : String(id).padStart(3, '0');
 }
 function posBadgeClass(pos) {
   if (pos === 'Pitcher/Catcher') return 'pos-PitcherCatcher';
@@ -1362,6 +1381,13 @@ const Coaches = {
 
 // ─── SESSIONS (Admin management) ─────────────────────────────────────────────
 const Sessions = {
+  _bibMode: 'blank',
+
+  setBibMode(m) {
+    this._bibMode = m;
+    document.querySelectorAll('.bib-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === m));
+  },
+
   async load() {
     setMain(`<h2 class="section-title">Evaluation Sessions</h2><div class="spinner"></div>`);
     try {
@@ -1379,6 +1405,9 @@ const Sessions = {
           const statusBadge = s.active == 1
             ? `<span class="badge-open">Open</span>`
             : `<span class="badge-closed">Closed</span>`;
+          const bibBadge = s.bib_mode === 'numbered'
+            ? `<span class="badge-warn" style="font-size:10px">Numbered</span>`
+            : `<span style="font-size:10px;color:var(--muted)">Blank</span>`;
           const created  = new Date(s.started_at).toLocaleDateString();
           const ended    = s.ended_at ? new Date(s.ended_at).toLocaleDateString() : '—';
           const lastAct  = s.last_activity ? new Date(s.last_activity).toLocaleDateString() : '—';
@@ -1388,6 +1417,7 @@ const Sessions = {
           return `<tr>
             <td><strong>${escHtml(s.name)}</strong></td>
             <td>${statusBadge}</td>
+            <td class="center text-sm">${bibBadge}</td>
             <td class="center text-sm">${created}</td>
             <td class="center text-sm">${ended}</td>
             <td class="center text-sm">${s.total_scores}</td>
@@ -1397,7 +1427,7 @@ const Sessions = {
             <td>${closeBtn}</td>
           </tr>`;
         }).join('')
-      : `<tr class="empty-row"><td colspan="9">No sessions yet. Create one to get started.</td></tr>`;
+      : `<tr class="empty-row"><td colspan="10">No sessions yet. Create one to get started.</td></tr>`;
 
     setMain(`
       <h2 class="section-title">Evaluation Sessions</h2>
@@ -1409,13 +1439,23 @@ const Sessions = {
           </div>
           <button class="btn btn-primary" onclick="Sessions.create()">＋ Create</button>
         </div>
+        <div class="bib-mode-toggle mt12">
+          <button data-mode="blank" class="bib-mode-btn active" onclick="Sessions.setBibMode('blank')">
+            Blank Bibs
+            <span class="text-xs">Numbers auto-assigned; written on bib at check-in</span>
+          </button>
+          <button data-mode="numbered" class="bib-mode-btn" onclick="Sessions.setBibMode('numbered')">
+            Pre-Numbered Bibs
+            <span class="text-xs">Numbers come from physical bibs at check-in</span>
+          </button>
+        </div>
         <div id="sessions-alert" class="mt8"></div>
       </div>
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>Name</th><th>Status</th>
+              <th>Name</th><th>Status</th><th class="center">Bibs</th>
               <th class="center">Created</th><th class="center">Closed</th>
               <th class="center">Scores</th><th class="center">Coaches</th>
               <th class="center">Players</th><th class="center">Last Activity</th>
@@ -1432,8 +1472,9 @@ const Sessions = {
     const name = nameEl.value.trim();
     if (!name) return showAlert('sessions-alert', 'Please enter a session name');
     try {
-      await api('sessions', 'create', { name });
+      await api('sessions', 'create', { name, bib_mode: this._bibMode });
       nameEl.value = '';
+      this._bibMode = 'blank';
       this.load();
     } catch (e) { showAlert('sessions-alert', e.message); }
   },
@@ -1444,6 +1485,255 @@ const Sessions = {
       await api('sessions', 'end', { session_id: id });
       this.load();
     } catch (e) { alert(e.message); }
+  }
+};
+
+// ─── CHECK-IN (Admin: bib assignment & player arrival) ────────────────────────
+const CheckIn = {
+  session: null,
+  sessions: [],
+  divisionId: 'all',
+  divisions: [],
+  players: [],
+
+  sessionLabel(s) {
+    // Build a display label for a session (no 'name' field in live DB)
+    return s.name ? escHtml(s.name)
+      : `Session #${s.id}${s.division_name ? ' — ' + escHtml(s.division_name) : ''}`;
+  },
+
+  async load() {
+    setMain(`<h2 class="section-title">Player Check-In</h2><div class="spinner"></div>`);
+    try {
+      this.sessions = await api('checkins', 'sessions');
+      if (!this.session && this.sessions.length === 1) this.session = this.sessions[0];
+      if (!this.session) { this.renderSessionPicker(); return; }
+      const still = this.sessions.find(s => s.id === this.session.id);
+      if (!still) { this.session = null; this.renderSessionPicker(); return; }
+      this.session = still;
+
+      this.divisions = await api('divisions', 'list').catch(() => []);
+      await this.loadPlayers();
+    } catch (e) {
+      setMain(`<h2 class="section-title">Player Check-In</h2><div class="alert alert-error">${escHtml(e.message)}</div>`);
+    }
+  },
+
+  async loadPlayers() {
+    let url = `api/checkins.php?action=list&session_id=${this.session.id}`;
+    if (App.managingLeague) url += `&managing_league_id=${App.managingLeague.id}`;
+    if (this.divisionId !== 'all') url += `&division_id=${this.divisionId}`;
+    const res = await fetch(url, { credentials: 'same-origin' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to load check-ins');
+    this.players = data.players || [];
+    this.render();
+  },
+
+  renderSessionPicker() {
+    if (!this.sessions.length) {
+      setMain(`<h2 class="section-title">Player Check-In</h2>
+        <div class="no-session"><div class="big-icon">🏷</div>
+        <h2 style="color:var(--dim)">No Open Sessions</h2>
+        <p class="text-muted mt8">Create a session in the Sessions tab first.</p></div>`);
+      return;
+    }
+    const items = this.sessions.map(s => `
+      <div class="league-card" style="cursor:pointer" onclick="CheckIn.selectSession(${s.id})">
+        <div class="league-icon">📋</div>
+        <div class="league-card-info">
+          <div class="league-name">${this.sessionLabel(s)}</div>
+          <div class="text-xs text-dim">${s.bib_mode === 'numbered' ? 'Pre-Numbered Bibs' : 'Blank Bibs'}</div>
+        </div>
+        <div class="league-card-actions"><button class="btn btn-sm btn-primary">Select →</button></div>
+      </div>`).join('');
+    setMain(`<h2 class="section-title">Player Check-In</h2>
+      <p class="text-muted text-sm mb16">Select a session to manage check-ins.</p>
+      <div class="league-list" style="max-width:460px">${items}</div>`);
+  },
+
+  selectSession(id) {
+    this.session    = this.sessions.find(s => s.id === id) || null;
+    this.divisionId = 'all';
+    this.players    = [];
+    this.load();
+  },
+
+  render() {
+    const s = this.session;
+    const isBlank = s.bib_mode === 'blank';
+    const checkedIn  = this.players.filter(p => p.checked_in == 1).length;
+    const total      = this.players.length;
+    const pct        = total ? Math.round(checkedIn / total * 100) : 0;
+    const hasUnassigned = isBlank && this.players.some(p => p.bib_number == null);
+
+    const divPills = [['all','All'], ...this.divisions.map(d => [String(d.id), d.name])]
+      .map(([val, label]) => `<button class="filter-pill${this.divisionId === val ? ' active' : ''}" onclick="CheckIn.setDivision('${val}')">${escHtml(label)}</button>`)
+      .join('');
+
+    const rows = this.players.map(p => this.renderRow(p)).join('');
+
+    setMain(`
+      <h2 class="section-title">Player Check-In</h2>
+      <div class="card card-pad mb16" style="max-width:640px">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <div>
+            <strong style="font-size:15px">${this.sessionLabel(s)}</strong>
+            <span class="text-xs text-dim" style="margin-left:8px">${isBlank ? 'Blank Bibs' : 'Pre-Numbered Bibs'}</span>
+          </div>
+          ${this.sessions.length > 1 ? `<button class="btn btn-secondary btn-sm" onclick="CheckIn.changeSession()">Change Session</button>` : ''}
+        </div>
+        ${hasUnassigned ? `<div class="mt12"><button class="btn btn-primary" id="auto-assign-btn" onclick="CheckIn.autoAssign()">⚡ Auto-Assign Numbers</button></div>` : ''}
+      </div>
+      <div style="max-width:640px">
+        <div class="ci-progress-wrap">
+          <div class="ci-progress-label">
+            <span>${checkedIn} of ${total} checked in</span>
+            <span>${pct}%</span>
+          </div>
+          <div class="ci-progress-bar"><div class="ci-progress-fill" style="width:${pct}%"></div></div>
+        </div>
+        <div class="filter-pills mb12">${divPills}</div>
+        <div class="ci-list">${rows || '<p class="text-muted text-sm">No players found.</p>'}</div>
+      </div>`);
+  },
+
+  renderRow(p) {
+    const s = this.session;
+    const isBlank = s.bib_mode === 'blank';
+    const checkedIn = p.checked_in == 1;
+    const id = p.player_id;
+
+    const bibDisplay = p.bib_number != null
+      ? `<div class="ci-bib">#${String(p.bib_number).padStart(3,'0')}</div>`
+      : `<div class="ci-bib-empty"></div>`;
+
+    const nameDiv = `<div class="ci-name">${escHtml(p.player_name)}<div class="ci-division">${escHtml(p.division_name)}</div></div>`;
+
+    let actions = '';
+    if (checkedIn) {
+      actions = `<span class="ci-badge-in">✓ ${isBlank ? 'Arrived' : 'Checked In'}</span>
+                 <button class="btn btn-sm btn-secondary" onclick="CheckIn.undo(${id})">Undo</button>`;
+    } else if (isBlank && p.bib_number != null) {
+      actions = `<button class="btn btn-sm btn-primary" onclick="CheckIn.checkin(${id})">✓ Mark Arrived</button>`;
+    } else if (!isBlank) {
+      actions = `<button class="btn btn-sm btn-primary" onclick="CheckIn.startCheckin(${id})">Check In</button>`;
+    } else {
+      actions = `<span class="text-xs text-dim">No bib — run auto-assign first</span>`;
+    }
+
+    return `<div class="ci-row${checkedIn ? ' checked-in' : ''}" id="ci-row-${id}">
+      ${bibDisplay}
+      ${nameDiv}
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${actions}</div>
+    </div>`;
+  },
+
+  setDivision(val) {
+    this.divisionId = val;
+    this.loadPlayers();
+  },
+
+  changeSession() {
+    this.session = null;
+    this.load();
+  },
+
+  async autoAssign() {
+    const btn = document.getElementById('auto-assign-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Assigning…'; }
+    try {
+      const res = await api('checkins', 'auto_assign', { session_id: this.session.id });
+      await this.loadPlayers();
+    } catch (e) { alert(e.message); if (btn) { btn.disabled = false; btn.textContent = '⚡ Auto-Assign Numbers'; } }
+  },
+
+  async checkin(playerId) {
+    // Blank mode: direct check-in
+    try {
+      const data = await api('checkins', 'checkin', { session_id: this.session.id, player_id: playerId });
+      const idx = this.players.findIndex(p => p.player_id == playerId);
+      if (idx >= 0) { this.players[idx].checked_in = 1; this.players[idx].checked_in_at = data.checked_in_at; }
+      const row = document.getElementById('ci-row-' + playerId);
+      if (row) row.outerHTML = this.renderRow(this.players[idx]);
+      this._updateProgress();
+    } catch (e) { alert(e.message); }
+  },
+
+  startCheckin(playerId) {
+    // Numbered mode: show inline bib input
+    const row = document.getElementById('ci-row-' + playerId);
+    if (!row) return;
+    const idx = this.players.findIndex(p => p.player_id == playerId);
+    const p   = this.players[idx];
+    row.outerHTML = `<div class="ci-row" id="ci-row-${playerId}">
+      <div class="ci-bib-empty"></div>
+      <div class="ci-name">${escHtml(p.player_name)}<div class="ci-division">${escHtml(p.division_name)}</div></div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-sm btn-secondary" onclick="CheckIn.cancelCheckin(${playerId})">✕</button>
+      </div>
+      <div class="ci-bib-entry">
+        <input id="ci-bib-input-${playerId}" type="number" min="1" max="999" placeholder="Bib #"
+          onkeydown="if(event.key==='Enter')CheckIn.confirmCheckin(${playerId})"
+          oninput="document.getElementById('ci-bib-err-${playerId}').textContent=''" />
+        <button class="btn btn-sm btn-primary" onclick="CheckIn.confirmCheckin(${playerId})">Confirm</button>
+      </div>
+      <div class="ci-bib-error" id="ci-bib-err-${playerId}"></div>
+    </div>`;
+    document.getElementById('ci-bib-input-' + playerId)?.focus();
+  },
+
+  cancelCheckin(playerId) {
+    const idx = this.players.findIndex(p => p.player_id == playerId);
+    const row = document.getElementById('ci-row-' + playerId);
+    if (row && idx >= 0) row.outerHTML = this.renderRow(this.players[idx]);
+  },
+
+  async confirmCheckin(playerId) {
+    const input = document.getElementById('ci-bib-input-' + playerId);
+    const errEl = document.getElementById('ci-bib-err-' + playerId);
+    if (!input) return;
+    const bib = parseInt(input.value);
+    if (!bib || bib < 1 || bib > 999) { if (errEl) errEl.textContent = 'Enter a bib number (1–999)'; return; }
+    try {
+      const data = await api('checkins', 'checkin', { session_id: this.session.id, player_id: playerId, bib_number: bib });
+      const idx = this.players.findIndex(p => p.player_id == playerId);
+      if (idx >= 0) {
+        this.players[idx].bib_number  = data.bib_number;
+        this.players[idx].checked_in  = 1;
+        this.players[idx].checked_in_at = data.checked_in_at;
+      }
+      const row = document.getElementById('ci-row-' + playerId);
+      if (row && idx >= 0) row.outerHTML = this.renderRow(this.players[idx]);
+      this._updateProgress();
+    } catch (e) {
+      if (errEl) errEl.textContent = e.message;
+    }
+  },
+
+  async undo(playerId) {
+    try {
+      await api('checkins', 'undo', { session_id: this.session.id, player_id: playerId });
+      const idx = this.players.findIndex(p => p.player_id == playerId);
+      if (idx >= 0) {
+        this.players[idx].checked_in = 0;
+        this.players[idx].checked_in_at = null;
+        if (this.session.bib_mode === 'numbered') this.players[idx].bib_number = null;
+      }
+      const row = document.getElementById('ci-row-' + playerId);
+      if (row && idx >= 0) row.outerHTML = this.renderRow(this.players[idx]);
+      this._updateProgress();
+    } catch (e) { alert(e.message); }
+  },
+
+  _updateProgress() {
+    const checkedIn = this.players.filter(p => p.checked_in == 1).length;
+    const total     = this.players.length;
+    const pct       = total ? Math.round(checkedIn / total * 100) : 0;
+    const label = document.querySelector('.ci-progress-label');
+    const fill  = document.querySelector('.ci-progress-fill');
+    if (label) label.innerHTML = `<span>${checkedIn} of ${total} checked in</span><span>${pct}%</span>`;
+    if (fill)  fill.style.width = pct + '%';
   }
 };
 
@@ -1531,6 +1821,17 @@ const CoachEvaluate = {
 
     this.players = players;
     this.skills  = await LeagueSkills.get();
+
+    // Load bib assignments and sort: checked-in by bib asc, unchecked at bottom
+    await CheckinCache.load(this.session.id);
+    this.players = this.players.sort((a, b) => {
+      const aBib = CheckinCache.getBib(a.id);
+      const bBib = CheckinCache.getBib(b.id);
+      if (aBib != null && bBib != null) return aBib - bBib;
+      if (aBib != null) return -1;
+      if (bBib != null) return 1;
+      return a.name.localeCompare(b.name);
+    });
 
     // Build allScores from server rows + local queue
     this.allScores = {};
@@ -1793,7 +2094,7 @@ const CoachEvaluate = {
             onblur="setTimeout(()=>{const d=document.getElementById('player-search-drop');if(d)d.hidden=true;},150)" />
           <div class="player-search-drop" id="player-search-drop" hidden></div>
         </div>
-        <div class="player-card eval-player-card">
+        <div class="player-card eval-player-card ${!CheckinCache.isCheckedIn(player.id) ? 'checkin-pending' : ''}">
           <button class="player-nav-btn" onclick="CoachEvaluate.prevPlayer()" ${atFirst ? 'disabled' : ''}>‹</button>
           <div class="eval-player-info">
             <div class="eval-player-name">

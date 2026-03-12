@@ -64,10 +64,26 @@ CREATE TABLE IF NOT EXISTS eval_sessions (
     league_id   INT NOT NULL,
     division_id INT NULL,
     active      TINYINT(1) DEFAULT 1,
+    bib_mode    ENUM('blank','numbered') NOT NULL DEFAULT 'blank',
     started_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     ended_at    TIMESTAMP NULL,
     FOREIGN KEY (division_id) REFERENCES divisions(id) ON DELETE SET NULL,
     FOREIGN KEY (league_id)   REFERENCES leagues(id) ON DELETE CASCADE
+);
+
+-- Player check-ins and bib number assignments
+CREATE TABLE IF NOT EXISTS session_checkins (
+    id            INT AUTO_INCREMENT PRIMARY KEY,
+    session_id    INT NOT NULL,
+    player_id     INT NOT NULL,
+    bib_number    SMALLINT UNSIGNED NOT NULL,
+    checked_in    TINYINT(1) NOT NULL DEFAULT 0,
+    checked_in_at TIMESTAMP NULL,
+    assigned_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_session_player (session_id, player_id),
+    UNIQUE KEY unique_session_bib    (session_id, bib_number),
+    FOREIGN KEY (session_id) REFERENCES eval_sessions(id) ON DELETE CASCADE,
+    FOREIGN KEY (player_id)  REFERENCES players(id)       ON DELETE CASCADE
 );
 
 -- Evaluations (individual scores)

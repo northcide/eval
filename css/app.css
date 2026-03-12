@@ -849,3 +849,30 @@ tr:hover td { background: var(--blue-dim); }
 .membership-row { display: flex; align-items: center; padding: 8px 12px; background: var(--bg3); border-radius: 8px; gap: 8px; }
 .membership-league { font-weight: 600; font-size: 14px; }
 .badge-native { display:inline-block; font-size:10px; font-weight:700; background:var(--blue-dim); color:var(--blue); border-radius:4px; padding:1px 5px; margin-left:6px; vertical-align:middle; text-transform:uppercase; }
+
+/* ── Bib mode toggle ──────────────────────────────────────────────────────── */
+.bib-mode-toggle { display: flex; gap: 8px; margin-bottom: 12px; }
+.bib-mode-btn { flex: 1; padding: 10px 12px; border-radius: var(--radius); border: 2px solid var(--border2); background: var(--bg2); text-align: left; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--muted); transition: all 0.15s; font-family: inherit; }
+.bib-mode-btn .text-xs { display: block; font-weight: 400; margin-top: 2px; }
+.bib-mode-btn.active { border-color: var(--blue); color: var(--blue); background: var(--blue-dim); }
+
+/* ── Check-in screen ──────────────────────────────────────────────────────── */
+.ci-progress-wrap { margin-bottom: 16px; }
+.ci-progress-label { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+.ci-progress-bar { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+.ci-progress-fill { height: 100%; background: var(--green); border-radius: 4px; transition: width 0.3s; }
+.ci-list { display: flex; flex-direction: column; gap: 6px; }
+.ci-row { display: flex; align-items: center; gap: 12px; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 14px; transition: border-color 0.15s; flex-wrap: wrap; }
+.ci-row.checked-in { border-color: rgba(22,163,74,0.35); background: var(--green-dim); }
+.ci-bib { font-size: 18px; font-weight: 800; color: var(--blue); min-width: 48px; text-align: center; font-variant-numeric: tabular-nums; }
+.ci-bib-empty { min-width: 48px; }
+.ci-name { flex: 1; font-weight: 600; font-size: 14px; min-width: 120px; }
+.ci-division { font-size: 12px; color: var(--dim); font-weight: 400; }
+.ci-badge-in { display: inline-flex; align-items: center; gap: 4px; background: var(--green-dim); color: var(--green); border: 1px solid rgba(22,163,74,0.3); border-radius: 20px; font-size: 11px; font-weight: 700; padding: 2px 10px; text-transform: uppercase; }
+.ci-bib-entry { display: flex; gap: 6px; align-items: center; width: 100%; margin-top: 6px; }
+.ci-bib-entry input { width: 90px; font-size: 18px; font-weight: 700; text-align: center; padding: 5px 8px; border: 2px solid var(--blue); border-radius: 8px; font-family: inherit; }
+.ci-bib-error { font-size: 11px; color: var(--red); margin-top: 2px; width: 100%; }
+
+/* ── Unchecked player in evaluate ─────────────────────────────────────────── */
+.checkin-pending { opacity: 0.6; }
+.checkin-pending .eval-player-num { color: var(--dim); }
