@@ -527,7 +527,7 @@ tr:hover td { background: var(--blue-dim); }
 /* Compact horizontal player card (mobile) */
 .eval-player-card {
   display: flex; flex-direction: row; align-items: center;
-  gap: 4px; padding: 12px 16px; margin-bottom: 0;
+  gap: 4px; padding: 8px 16px; margin-bottom: 0;
 }
 .eval-player-info {
   flex: 1; min-width: 0; text-align: center;
@@ -706,12 +706,11 @@ tr:hover td { background: var(--blue-dim); }
   .eval-screen .score-grid { gap: 7px; }
 
   /* Compact eval player card (horizontal strip) */
-  .eval-player-card { padding: 10px 12px; gap: 2px; }
-  .eval-player-name { font-size: 15px; }
-  .eval-player-num  { font-size: 12px; }
-  .eval-player-meta { font-size: 10px; margin-bottom: 3px; }
-  .eval-player-card .skill-label { font-size: 10px; padding: 2px 8px; margin-top: 0; }
-  .eval-player-card .player-nav-btn { width: 38px; height: 38px; font-size: 24px; }
+  .eval-player-card { padding: 5px 10px; gap: 2px; }
+  .eval-player-name { font-size: 18px; }
+  .eval-player-num  { font-size: 15px; }
+  .eval-player-meta { font-size: 10px; margin-bottom: 0; }
+  .eval-player-card .player-nav-btn { width: 34px; height: 34px; font-size: 22px; }
 
   .player-card { padding: 20px 16px; margin-bottom: 14px; border-radius: 14px; }
   .player-number { font-size: 28px; margin-bottom: 8px; }

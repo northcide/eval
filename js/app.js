@@ -1806,7 +1806,6 @@ const CoachEvaluate = {
               `${this.localPlayerIndex + 1} / ${this.players.length}`,
               `${remaining} left`
             ].filter(Boolean).join(' · ')}${isScored ? ' <span class="player-nav-scored">✓</span>' : ''}</div>
-            <div><span class="skill-label">${skill.toUpperCase()}</span></div>
           </div>
           <button class="player-nav-btn" onclick="CoachEvaluate.nextPlayer()" ${atLast ? 'disabled' : ''}>›</button>
         </div>
