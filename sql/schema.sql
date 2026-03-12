@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS leagues (
 CREATE TABLE IF NOT EXISTS coaches (
     id         INT AUTO_INCREMENT PRIMARY KEY,
     name       VARCHAR(100) NOT NULL,
-    email      VARCHAR(255) NULL,
+    email      VARCHAR(255) NOT NULL,
     password   VARCHAR(255) NOT NULL,
     is_admin   TINYINT(1) DEFAULT 0,
     league_id  INT NULL,
@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS players (
     age         INT,
     is_pitcher  TINYINT(1) DEFAULT 0,
     is_catcher  TINYINT(1) DEFAULT 0,
+    is_coaches_child TINYINT(1) DEFAULT 0,
     division_id INT,
     created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (division_id) REFERENCES divisions(id) ON DELETE SET NULL
@@ -97,6 +98,6 @@ CREATE TABLE IF NOT EXISTS coach_leagues (
 );
 
 -- Default superadmin account (password: admin123)
-INSERT INTO coaches (name, password, is_admin, league_id)
-VALUES ('Administrator', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 1, NULL)
+INSERT INTO coaches (name, email, password, is_admin, league_id)
+VALUES ('Administrator', 'admin@local.dev', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 1, NULL)
 ON DUPLICATE KEY UPDATE id=id;

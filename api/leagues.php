@@ -42,10 +42,13 @@ switch ($action) {
         $data       = getInput();
         $leagueName = trim($data['league_name'] ?? '');
         $adminName  = trim($data['admin_name'] ?? '');
+        $adminEmail = strtolower(trim($data['admin_email'] ?? ''));
         $adminPass  = $data['admin_password'] ?? '';
 
         if (!$leagueName) jsonResponse(['error' => 'League name required'], 400);
         if (!$adminName)  jsonResponse(['error' => 'Admin name required'], 400);
+        if (!$adminEmail) jsonResponse(['error' => 'Admin email required'], 400);
+        if (!filter_var($adminEmail, FILTER_VALIDATE_EMAIL)) jsonResponse(['error' => 'Invalid admin email address'], 400);
         if (!$adminPass)  jsonResponse(['error' => 'Admin password required'], 400);
         if (strlen($adminPass) < 6) jsonResponse(['error' => 'Password must be at least 6 characters'], 400);
 
@@ -56,8 +59,8 @@ switch ($action) {
             $leagueId = $db->lastInsertId();
 
             $hash = password_hash($adminPass, PASSWORD_DEFAULT);
-            $db->prepare("INSERT INTO coaches (name, password, is_admin, league_id) VALUES (?, ?, 1, ?)")
-               ->execute([$adminName, $hash, $leagueId]);
+            $db->prepare("INSERT INTO coaches (name, email, password, is_admin, league_id) VALUES (?, ?, ?, 1, ?)")
+               ->execute([$adminName, $adminEmail, $hash, $leagueId]);
 
             // Insert default skills
             $defaultSkills = ['Running', 'Fielding', 'Pitching', 'Hitting'];

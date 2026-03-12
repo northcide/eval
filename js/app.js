@@ -195,22 +195,22 @@ const App = {
   },
 
   async doLogin() {
-    const name = document.getElementById('login-name').value.trim();
-    const pass = document.getElementById('login-pass').value;
-    const err  = document.getElementById('login-error');
-    const btn  = document.getElementById('login-btn');
+    const email = document.getElementById('login-email').value.trim();
+    const pass  = document.getElementById('login-pass').value;
+    const err   = document.getElementById('login-error');
+    const btn   = document.getElementById('login-btn');
 
     err.textContent = '';
     err.classList.add('hidden');
 
-    if (!name) { showLoginError('Please enter your name.'); return; }
+    if (!email) { showLoginError('Please enter your email address.'); return; }
     if (!pass)  { showLoginError('Please enter your password.'); return; }
 
     btn.disabled = true;
     btn.textContent = 'Signing in…';
 
     try {
-      const result = await api('auth', 'login', { name, password: pass });
+      const result = await api('auth', 'login', { email, password: pass });
       if (result.needs_league_select) {
         this.showLeaguePicker(result.leagues);
         btn.disabled = false;
@@ -290,7 +290,7 @@ const App = {
     if (isSuperAdmin) {
       tabs = [['leagues','Leagues','🏆']];
     } else if (isLeagueAdmin) {
-      tabs = [['leagues','My League','🏆']];
+      tabs = [['leagues','My League','🏆'],['evaluate','Evaluate','⚾'],['results','My Results','📊']];
     } else {
       tabs = [['evaluate','Evaluate','⚾'],['results','My Results','📊']];
     }
@@ -452,8 +452,8 @@ function renderLogin() {
       <div class="login-card">
         <form id="login-form">
           <div class="field-group">
-            <label class="field-label">Email or Name</label>
-            <input id="login-name" placeholder="Email or name" autocomplete="username"
+            <label class="field-label">Email</label>
+            <input id="login-email" type="email" placeholder="Email address" autocomplete="username"
               oninput="document.getElementById('login-error').classList.add('hidden')" />
           </div>
           <div class="field-group">
@@ -464,7 +464,7 @@ function renderLogin() {
           <div id="login-error" class="alert alert-error hidden"></div>
           <button id="login-btn" type="submit" class="btn btn-primary btn-full mt16">Sign In</button>
         </form>
-        <p class="login-hint">Default admin: "Administrator" / "admin123"</p>
+        <p class="login-hint">Default admin: admin@local.dev / admin123</p>
       </div>
     </div>
   </div>`;
@@ -620,7 +620,11 @@ const Leagues = {
         </div>
         <div class="field-group">
           <label class="field-label">League Admin Name</label>
-          <input id="lg-admin-name" placeholder="Admin's login name" />
+          <input id="lg-admin-name" placeholder="Admin's display name" />
+        </div>
+        <div class="field-group">
+          <label class="field-label">League Admin Email</label>
+          <input id="lg-admin-email" type="email" placeholder="admin@example.com" />
         </div>
         <div class="field-group">
           <label class="field-label">League Admin Password</label>
@@ -645,12 +649,13 @@ const Leagues = {
   },
 
   async create() {
-    const leagueName = document.getElementById('lg-name').value.trim();
-    const adminName  = document.getElementById('lg-admin-name').value.trim();
-    const adminPass  = document.getElementById('lg-admin-pass').value;
-    if (!leagueName || !adminName || !adminPass) return showAlert('leagues-alert', 'All fields required');
+    const leagueName  = document.getElementById('lg-name').value.trim();
+    const adminName   = document.getElementById('lg-admin-name').value.trim();
+    const adminEmail  = document.getElementById('lg-admin-email').value.trim();
+    const adminPass   = document.getElementById('lg-admin-pass').value;
+    if (!leagueName || !adminName || !adminEmail || !adminPass) return showAlert('leagues-alert', 'All fields required');
     try {
-      await api('leagues', 'create', { league_name: leagueName, admin_name: adminName, admin_password: adminPass });
+      await api('leagues', 'create', { league_name: leagueName, admin_name: adminName, admin_email: adminEmail, admin_password: adminPass });
       this.load();
     } catch (e) { showAlert('leagues-alert', e.message); }
   },
@@ -866,6 +871,7 @@ const Players = {
               <div class="pos-checks">
                 <label><input type="checkbox" id="pe-pitcher-${p.id}" ${p.is_pitcher==1?'checked':''}> Pitcher</label>
                 <label><input type="checkbox" id="pe-catcher-${p.id}" ${p.is_catcher==1?'checked':''}> Catcher</label>
+                <label><input type="checkbox" id="pe-coaches-child-${p.id}" ${p.is_coaches_child==1?'checked':''}> Coach's Child</label>
               </div>
             </td>
             <td>
@@ -891,6 +897,7 @@ const Players = {
           <div class="pos-checks">
             <label><input type="checkbox" id="p-pitcher"> Pitcher</label>
             <label><input type="checkbox" id="p-catcher"> Catcher</label>
+            <label><input type="checkbox" id="p-coaches-child"> Coach's Child</label>
           </div>
           <div class="med">
             <select id="p-div"><option value="">-- Division --</option>${divOpts}</select>
@@ -942,13 +949,14 @@ const Players = {
   async add() {
     const name      = document.getElementById('p-name').value.trim();
     const age       = document.getElementById('p-age').value;
-    const isPitcher = document.getElementById('p-pitcher').checked ? 1 : 0;
-    const isCatcher = document.getElementById('p-catcher').checked ? 1 : 0;
-    const div       = document.getElementById('p-div').value;
+    const isPitcher      = document.getElementById('p-pitcher').checked ? 1 : 0;
+    const isCatcher      = document.getElementById('p-catcher').checked ? 1 : 0;
+    const isCoachesChild = document.getElementById('p-coaches-child').checked ? 1 : 0;
+    const div            = document.getElementById('p-div').value;
     if (!name) return showAlert('players-alert', 'Player name is required');
     if (!div)  return showAlert('players-alert', 'Please select a division');
     try {
-      await api('players', 'create', { name, age, is_pitcher: isPitcher, is_catcher: isCatcher, division_id: div || null });
+      await api('players', 'create', { name, age, is_pitcher: isPitcher, is_catcher: isCatcher, is_coaches_child: isCoachesChild, division_id: div || null });
       this.load();
     } catch (e) { showAlert('players-alert', e.message); }
   },
@@ -998,12 +1006,13 @@ const Players = {
   async saveEdit(id) {
     const name      = document.getElementById(`pe-name-${id}`)?.value.trim();
     const age       = document.getElementById(`pe-age-${id}`)?.value;
-    const isPitcher = document.getElementById(`pe-pitcher-${id}`)?.checked ? 1 : 0;
-    const isCatcher = document.getElementById(`pe-catcher-${id}`)?.checked ? 1 : 0;
-    const divId     = document.getElementById(`pe-div-${id}`)?.value;
+    const isPitcher      = document.getElementById(`pe-pitcher-${id}`)?.checked ? 1 : 0;
+    const isCatcher      = document.getElementById(`pe-catcher-${id}`)?.checked ? 1 : 0;
+    const isCoachesChild = document.getElementById(`pe-coaches-child-${id}`)?.checked ? 1 : 0;
+    const divId          = document.getElementById(`pe-div-${id}`)?.value;
     if (!name) return showAlert('players-alert', 'Player name is required');
     try {
-      await api('players', 'update', { id, name, age, is_pitcher: isPitcher, is_catcher: isCatcher, division_id: divId || null });
+      await api('players', 'update', { id, name, age, is_pitcher: isPitcher, is_catcher: isCatcher, is_coaches_child: isCoachesChild, division_id: divId || null });
       this.load();
     } catch (e) { showAlert('players-alert', e.message); }
   },
@@ -1073,7 +1082,7 @@ const Coaches = {
         <p class="text-muted text-sm mb12" style="text-transform:uppercase;letter-spacing:.1em">Add New Coach</p>
         <div class="form-row mb8">
           <div class="grow"><input id="c-name" placeholder="Name" /></div>
-          <div class="grow"><input id="c-email" type="email" placeholder="Email (optional)" /></div>
+          <div class="grow"><input id="c-email" type="email" placeholder="Email (required)" /></div>
         </div>
         <div class="form-row">
           <div class="med"><input id="c-pass" type="password" placeholder="Password" /></div>
@@ -1150,9 +1159,10 @@ const Coaches = {
 
   async add() {
     const name  = document.getElementById('c-name').value.trim();
-    const email = document.getElementById('c-email').value.trim() || null;
+    const email = document.getElementById('c-email').value.trim();
     const pass  = document.getElementById('c-pass').value;
     if (!name || !pass) return showAlert('coaches-alert', 'Name and password required');
+    if (!email) return showAlert('coaches-alert', 'Email is required');
     try {
       await api('coaches', 'create', { name, email, password: pass });
       this.load();
@@ -1263,8 +1273,9 @@ const Coaches = {
 
   async saveEdit(id) {
     const name  = document.getElementById(`ce-name-${id}`).value.trim();
-    const email = document.getElementById(`ce-email-${id}`).value.trim() || null;
+    const email = document.getElementById(`ce-email-${id}`).value.trim();
     if (!name) return showAlert('coaches-alert', 'Name is required');
+    if (!email) return showAlert('coaches-alert', 'Email is required');
     try {
       await api('coaches', 'update', { id, name, email });
       this.load();
@@ -1664,7 +1675,7 @@ const CoachEvaluate = {
         </div>
         <div class="player-card">
           <div class="player-number">#${num}</div>
-          <div class="player-name">${escHtml(player.name)}</div>
+          <div class="player-name">${escHtml(player.name)}${player.is_coaches_child ? ' <span class="badge-warn">Coach\'s Child</span>' : ''}</div>
           <p class="player-sub">${player.position !== 'Player' ? escHtml(player.position) : ''}${player.age ? `${player.position !== 'Player' ? ' • ' : ''}Age ${player.age}` : ''}</p>
           <div class="player-nav">
             <button class="player-nav-btn" onclick="CoachEvaluate.prevPlayer()" ${atFirst ? 'disabled' : ''}>‹</button>

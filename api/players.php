@@ -60,9 +60,10 @@ switch ($action) {
         $data       = getInput();
         $name       = trim($data['name'] ?? '');
         $age        = isset($data['age']) && $data['age'] !== '' ? (int)$data['age'] : null;
-        $isPitcher  = empty($data['is_pitcher']) ? 0 : 1;
-        $isCatcher  = empty($data['is_catcher']) ? 0 : 1;
-        $divisionId = (int)($data['division_id'] ?? 0) ?: null;
+        $isPitcher      = empty($data['is_pitcher']) ? 0 : 1;
+        $isCatcher      = empty($data['is_catcher']) ? 0 : 1;
+        $isCoachesChild = empty($data['is_coaches_child']) ? 0 : 1;
+        $divisionId     = (int)($data['division_id'] ?? 0) ?: null;
 
         if (!$name) jsonResponse(['error' => 'Name required'], 400);
 
@@ -74,8 +75,8 @@ switch ($action) {
             if (!$div || $div['league_id'] != $leagueId) jsonResponse(['error' => 'Division not in this league'], 403);
         }
 
-        $db->prepare("INSERT INTO players (name, age, is_pitcher, is_catcher, division_id) VALUES (?, ?, ?, ?, ?)")
-           ->execute([$name, $age, $isPitcher, $isCatcher, $divisionId]);
+        $db->prepare("INSERT INTO players (name, age, is_pitcher, is_catcher, is_coaches_child, division_id) VALUES (?, ?, ?, ?, ?, ?)")
+           ->execute([$name, $age, $isPitcher, $isCatcher, $isCoachesChild, $divisionId]);
         $id = $db->lastInsertId();
 
         $row = $db->prepare("SELECT p.*, d.name as division_name, $positionExpr FROM players p LEFT JOIN divisions d ON d.id=p.division_id WHERE p.id=?");
@@ -94,16 +95,17 @@ switch ($action) {
         if (!is_array($rows) || !count($rows)) jsonResponse(['error' => 'No players'], 400);
 
         $db   = getDB();
-        $stmt = $db->prepare("INSERT INTO players (name, age, is_pitcher, is_catcher, division_id) VALUES (?, ?, ?, ?, ?)");
+        $stmt = $db->prepare("INSERT INTO players (name, age, is_pitcher, is_catcher, is_coaches_child, division_id) VALUES (?, ?, ?, ?, ?, ?)");
         $count = 0;
         foreach ($rows as $r) {
             $name = trim($r['name'] ?? '');
             if (!$name) continue;
-            $age       = isset($r['age']) && $r['age'] !== '' ? (int)$r['age'] : null;
-            $isPitcher = empty($r['is_pitcher']) ? 0 : 1;
-            $isCatcher = empty($r['is_catcher']) ? 0 : 1;
-            $divId     = isset($r['division_id']) ? (int)$r['division_id'] : $defDiv;
-            $stmt->execute([$name, $age, $isPitcher, $isCatcher, $divId ?: null]);
+            $age            = isset($r['age']) && $r['age'] !== '' ? (int)$r['age'] : null;
+            $isPitcher      = empty($r['is_pitcher']) ? 0 : 1;
+            $isCatcher      = empty($r['is_catcher']) ? 0 : 1;
+            $isCoachesChild = empty($r['is_coaches_child']) ? 0 : 1;
+            $divId          = isset($r['division_id']) ? (int)$r['division_id'] : $defDiv;
+            $stmt->execute([$name, $age, $isPitcher, $isCatcher, $isCoachesChild, $divId ?: null]);
             $count++;
         }
         jsonResponse(['imported' => $count]);
@@ -116,9 +118,10 @@ switch ($action) {
         $id         = (int)($data['id'] ?? 0);
         $name       = trim($data['name'] ?? '');
         $age        = isset($data['age']) && $data['age'] !== '' ? (int)$data['age'] : null;
-        $isPitcher  = empty($data['is_pitcher']) ? 0 : 1;
-        $isCatcher  = empty($data['is_catcher']) ? 0 : 1;
-        $divisionId = (int)($data['division_id'] ?? 0) ?: null;
+        $isPitcher      = empty($data['is_pitcher']) ? 0 : 1;
+        $isCatcher      = empty($data['is_catcher']) ? 0 : 1;
+        $isCoachesChild = empty($data['is_coaches_child']) ? 0 : 1;
+        $divisionId     = (int)($data['division_id'] ?? 0) ?: null;
 
         if (!$id)   jsonResponse(['error' => 'ID required'], 400);
         if (!$name) jsonResponse(['error' => 'Name required'], 400);
@@ -131,8 +134,8 @@ switch ($action) {
             if (!$row || $row['league_id'] != $leagueId) jsonResponse(['error' => 'Access denied'], 403);
         }
 
-        $db->prepare("UPDATE players SET name=?, age=?, is_pitcher=?, is_catcher=?, division_id=? WHERE id=?")
-           ->execute([$name, $age, $isPitcher, $isCatcher, $divisionId, $id]);
+        $db->prepare("UPDATE players SET name=?, age=?, is_pitcher=?, is_catcher=?, is_coaches_child=?, division_id=? WHERE id=?")
+           ->execute([$name, $age, $isPitcher, $isCatcher, $isCoachesChild, $divisionId, $id]);
         jsonResponse(['success' => true]);
         break;
 

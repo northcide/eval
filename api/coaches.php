@@ -42,9 +42,11 @@ switch ($action) {
         $name      = trim($data['name'] ?? '');
         $pass      = $data['password'] ?? '';
         $makeAdmin = !empty($data['is_admin']) ? 1 : 0;
-        $email = trim($data['email'] ?? '') ?: null;
+        $email = strtolower(trim($data['email'] ?? ''));
 
         if (!$name || !$pass) jsonResponse(['error' => 'Name and password required'], 400);
+        if (!$email) jsonResponse(['error' => 'Email is required'], 400);
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) jsonResponse(['error' => 'Invalid email address'], 400);
         if ($leagueId === null) jsonResponse(['error' => 'No league selected'], 400);
 
         $db   = getDB();
@@ -55,7 +57,7 @@ switch ($action) {
             $id = $db->lastInsertId();
             jsonResponse(['id' => $id, 'name' => $name, 'is_admin' => (bool)$makeAdmin, 'league_id' => $leagueId]);
         } catch (PDOException $e) {
-            if ($e->getCode() === '23000') jsonResponse(['error' => 'A coach with that name or email already exists'], 409);
+            if ($e->getCode() === '23000') jsonResponse(['error' => 'A coach with that email already exists'], 409);
             throw $e;
         }
         break;
@@ -66,9 +68,11 @@ switch ($action) {
         $data     = getInput();
         $id       = (int)($data['id'] ?? 0);
         $name     = trim($data['name'] ?? '');
-        $email    = trim($data['email'] ?? '') ?: null;
+        $email    = strtolower(trim($data['email'] ?? ''));
 
         if (!$id || !$name) jsonResponse(['error' => 'ID and name required'], 400);
+        if (!$email) jsonResponse(['error' => 'Email is required'], 400);
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) jsonResponse(['error' => 'Invalid email address'], 400);
 
         $db   = getDB();
         $stmt = $db->prepare("SELECT is_admin, league_id FROM coaches WHERE id = ?");
@@ -92,7 +96,7 @@ switch ($action) {
                ->execute([$name, $email, $id]);
             jsonResponse(['success' => true]);
         } catch (PDOException $e) {
-            if ($e->getCode() === '23000') jsonResponse(['error' => 'A coach with that name or email already exists'], 409);
+            if ($e->getCode() === '23000') jsonResponse(['error' => 'A coach with that email already exists'], 409);
             throw $e;
         }
         break;

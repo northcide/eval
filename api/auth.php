@@ -8,15 +8,15 @@ $action = $_GET['action'] ?? '';
 switch ($action) {
     case 'login':
         $data = getInput();
-        $login = trim($data['name'] ?? '');  // accepts email or name
+        $login = strtolower(trim($data['email'] ?? ''));
         $pass  = $data['password'] ?? '';
 
-        if (!$login || !$pass) jsonResponse(['error' => 'Login and password required'], 400);
+        if (!$login || !$pass) jsonResponse(['error' => 'Email and password required'], 400);
 
         $db = getDB();
-        // Try email first, then name
-        $stmt = $db->prepare("SELECT * FROM coaches WHERE email = ? OR LOWER(name) = LOWER(?)");
-        $stmt->execute([$login, $login]);
+
+        $stmt = $db->prepare("SELECT * FROM coaches WHERE email = ?");
+        $stmt->execute([$login]);
         $coach = $stmt->fetch();
 
         if (!$coach || !password_verify($pass, $coach['password'])) {

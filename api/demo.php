@@ -110,14 +110,17 @@ switch ($action) {
         $db->prepare("DELETE FROM coaches WHERE is_admin = 0 AND league_id = ?")->execute([$leagueId]);
 
         $hash = password_hash('coach123', PASSWORD_DEFAULT);
-        $stmt = $db->prepare("INSERT INTO coaches (name, password, is_admin, league_id) VALUES (?, ?, 0, ?)");
+        $stmt = $db->prepare("INSERT INTO coaches (name, email, password, is_admin, league_id) VALUES (?, ?, ?, 0, ?)");
         $used = [];
         $created = 0;
         while ($created < 10) {
-            $name = $coachFirstNames[array_rand($coachFirstNames)] . ' ' . $coachLastNames[array_rand($coachLastNames)];
+            $first = $coachFirstNames[array_rand($coachFirstNames)];
+            $last  = $coachLastNames[array_rand($coachLastNames)];
+            $name  = "$first $last";
             if (isset($used[$name])) continue;
             $used[$name] = true;
-            $stmt->execute([$name, $hash, $leagueId]);
+            $email = strtolower($first . '.' . $last . '@demo.local');
+            $stmt->execute([$name, $email, $hash, $leagueId]);
             $created++;
         }
         jsonResponse(['created' => $created, 'message' => "Created {$created} coaches. Password for all: coach123"]);
